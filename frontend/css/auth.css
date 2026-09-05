@@ -1,0 +1,43 @@
+.auth-container {
+    min-height: 100vh;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    padding: 20px;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+
+    text-align: center;
+}
+
+.auth-card h1 {
+    margin-bottom: 10px;
+}
+
+.auth-subtitle {
+    margin-bottom: 30px;
+}
+
+.google-login-btn {
+    width: 100%;
+    padding: 14px;
+
+    border: 1px solid #ccc;
+    border-radius: 8px;
+
+    background: white;
+}
+
+.google-login-btn:hover {
+    background: #f5f5f5;
+}
+
+.auth-error {
+    margin-top: 20px;
+    color: #d93025;
+}

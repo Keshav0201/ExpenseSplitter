@@ -91,8 +91,38 @@ const searchUser = async (req, res) => {
     }
 };
 
+const getUserById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const user = await getUserProfile(id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: user
+        });
+
+    } catch (error) {
+        console.error("Get user by ID error:", error);
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to get user by ID"
+        });
+    }
+};
+
+
 module.exports = {
     getMyProfile,
     updateMyProfile,
-    searchUser
+    searchUser,
+    getUserById
 };

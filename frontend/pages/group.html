@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Group | Expense Splitter</title>
+
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/group.css">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="group-header">
+
+        <a href="./dashboard.html" class="back-link">
+            ← Dashboard
+        </a>
+
+        <button id="logout-btn" class="secondary-btn">
+            Logout
+        </button>
+
+    </header>
+
+
+    <main class="group-page">
+
+        <!-- Group heading -->
+        <section class="group-title-section">
+
+            <div>
+
+                <p class="eyebrow">Group</p>
+
+                <h1 id="group-name">
+                    Loading...
+                </h1>
+
+                <p id="group-description">
+                    Group expenses and settlements
+                </p>
+
+            </div>
+
+            <button
+                id="add-expense-btn"
+                class="primary-btn"
+            >
+                + Add Expense
+            </button>
+
+        </section>
+
+
+        <!-- Group Balance -->
+        <section class="group-balance-section">
+
+            <div class="section-header">
+                <div>
+                    <p class="eyebrow">Your balance</p>
+                    <h2>Balance</h2>
+                </div>
+            </div>
+
+            <div
+                id="my-balance"
+                class="my-balance-card"
+            >
+                Loading...
+            </div>
+
+        </section>
+
+
+        <!-- Members -->
+        <section class="members-section">
+
+            <div class="section-header">
+
+                <div>
+                    <p class="eyebrow">People</p>
+                    <h2>Members</h2>
+                </div>
+
+                <button
+                    id="add-member-btn"
+                    class="secondary-btn"
+                >
+                    + Add Member
+                </button>
+
+            </div>
+
+
+            <div
+                id="members-container"
+                class="members-container"
+            >
+                <div class="loading-state">
+                    Loading members...
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- Expenses -->
+        <section class="expenses-section">
+
+            <div class="section-header">
+
+                <div>
+                    <p class="eyebrow">Transactions</p>
+                    <h2>Expenses</h2>
+                </div>
+
+            </div>
+
+
+            <div
+                id="expenses-container"
+                class="expenses-container"
+            >
+                <div class="loading-state">
+                    Loading expenses...
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- Settlements -->
+        <section class="settlements-section">
+
+            <div class="section-header">
+
+                <div>
+                    <p class="eyebrow">Settle up</p>
+                    <h2>Settlements</h2>
+                </div>
+
+            </div>
+
+
+            <div
+                id="settlements-container"
+                class="settlements-container"
+            >
+                <div class="loading-state">
+                    Loading settlements...
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- Add Member Modal -->
+    <div
+        id="add-member-modal"
+        class="modal hidden"
+    >
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <div>
+                    <p class="eyebrow">Group</p>
+                    <h2>Add Member</h2>
+                </div>
+
+                <button
+                    id="close-member-btn"
+                    class="close-btn"
+                    type="button"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <form id="add-member-form">
+
+                <label for="member-email">
+                    Member email
+                </label>
+
+                <input
+                    type="email"
+                    id="member-email"
+                    placeholder="friend@example.com"
+                    autocomplete="off"
+                    required
+                >
+
+                <p
+                    id="member-error"
+                    class="form-error"
+                ></p>
+
+
+                <div class="modal-actions">
+
+                    <button
+                        type="button"
+                        id="cancel-member-btn"
+                        class="secondary-btn"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        id="submit-member-btn"
+                        class="primary-btn"
+                    >
+                        Add Member
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <!-- Add Expense Modal -->
+    <div
+        id="expense-modal"
+        class="modal hidden"
+    >
+
+        <div class="modal-content expense-modal-content">
+
+            <div class="modal-header">
+
+                <div>
+                    <p class="eyebrow">Transaction</p>
+                    <h2>Add Expense</h2>
+                </div>
+
+                <button
+                    id="close-expense-btn"
+                    class="close-btn"
+                    type="button"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <form id="expense-form">
+
+                <label for="expense-description">
+                    Description
+                </label>
+
+                <input
+                    type="text"
+                    id="expense-description"
+                    placeholder="e.g. Dinner"
+                    required
+                >
+
+
+                <label for="expense-amount">
+                    Amount
+                </label>
+
+                <input
+                    type="number"
+                    id="expense-amount"
+                    placeholder="1000"
+                    min="0.01"
+                    step="0.01"
+                    required
+                >
+
+
+                <label for="expense-paid-by">
+                    Paid by
+                </label>
+
+                <select id="expense-paid-by" required>
+                    <option value="">
+                        Select member
+                    </option>
+                </select>
+
+
+                <label for="expense-split-type">
+                    Split type
+                </label>
+
+                <select id="expense-split-type" required>
+
+                    <option value="equal">
+                        Equal
+                    </option>
+
+                    <option value="exact">
+                        Exact
+                    </option>
+
+                    <option value="percentage">
+                        Percentage
+                    </option>
+
+                </select>
+
+
+                <div id="participants-container">
+
+                    <label>
+                        Participants
+                    </label>
+
+                    <div id="participants-list">
+                        <!-- Generated by JavaScript -->
+                    </div>
+
+                </div>
+
+
+                <label for="expense-category">
+                    Category
+                </label>
+
+                <select id="expense-category" required>
+
+                    <option value="Food">Food</option>
+                    <option value="Travel">Travel</option>
+                    <option value="Accommodation">
+                        Accommodation
+                    </option>
+                    <option value="Entertainment">
+                        Entertainment
+                    </option>
+                    <option value="Shopping">
+                        Shopping
+                    </option>
+                    <option value="Utilities">
+                        Utilities
+                    </option>
+                    <option value="Other">Other</option>
+
+                </select>
+
+
+                <label for="expense-date">
+                    Date
+                </label>
+
+                <input
+                    type="date"
+                    id="expense-date"
+                    required
+                >
+
+
+                <p
+                    id="expense-error"
+                    class="form-error"
+                ></p>
+
+
+                <div class="modal-actions">
+
+                    <button
+                        type="button"
+                        id="cancel-expense-btn"
+                        class="secondary-btn"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="submit"
+                        id="submit-expense-btn"
+                        class="primary-btn"
+                    >
+                        Add Expense
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <script type="module" src="../js/group.js"></script>
+
+</body>
+
+</html>
