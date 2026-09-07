@@ -7,6 +7,7 @@ const createGroup = async (groupData) => {
 
     const group = {
         name: groupData.name,
+        type: groupData.type || "group",
         createdBy: groupData.createdBy,
 
         members: {

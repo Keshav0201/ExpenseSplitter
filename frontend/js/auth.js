@@ -3,8 +3,7 @@ import { auth } from "./firebase.js";
 import {
     GoogleAuthProvider,
     signInWithPopup,
-    onAuthStateChanged,
-    signOut
+    onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
 import { api } from "./api.js";
@@ -19,38 +18,55 @@ const authError =
 const provider = new GoogleAuthProvider();
 
 
-/* Google Login */
+/* =========================
+   Google Login
+========================= */
+
 if (googleLoginButton) {
+
+    const googleLoginText =
+        googleLoginButton.querySelector("span");
 
     googleLoginButton.addEventListener("click", async () => {
 
-        authError.textContent = "";
+        if (authError) {
+            authError.textContent = "";
+        }
+
+        googleLoginButton.disabled = true;
+
+        if (googleLoginText) {
+            googleLoginText.textContent = "Signing in...";
+        }
 
         try {
-
-            googleLoginButton.disabled = true;
-            googleLoginButton.textContent = "Signing in...";
 
             await signInWithPopup(auth, provider);
 
         } catch (error) {
 
-            console.error(error);
+            console.error("Google login failed:", error);
 
-            authError.textContent =
-                "Unable to sign in. Please try again.";
+            if (authError) {
+                authError.textContent =
+                    "Unable to sign in. Please try again.";
+            }
 
             googleLoginButton.disabled = false;
-            googleLoginButton.textContent =
-                "Continue with Google";
+
+            if (googleLoginText) {
+                googleLoginText.textContent =
+                    "Continue with Google";
+            }
         }
-
     });
-
 }
 
 
-/* Authentication State */
+/* =========================
+   Authentication State
+========================= */
+
 onAuthStateChanged(auth, async (user) => {
 
     if (user) {
@@ -67,15 +83,44 @@ onAuthStateChanged(auth, async (user) => {
 
         } catch (error) {
 
-            console.error("Backend authentication failed:", error);
+            console.error(
+                "Backend authentication failed:",
+                error
+            );
 
+            if (authError) {
+                authError.textContent =
+                    "Login failed. Please try again.";
+            }
+
+            if (googleLoginButton) {
+                googleLoginButton.disabled = false;
+
+                const googleLoginText =
+                    googleLoginButton.querySelector("span");
+
+                if (googleLoginText) {
+                    googleLoginText.textContent =
+                        "Continue with Google";
+                }
+            }
         }
 
     } else {
 
         console.log("No authenticated user");
 
+        if (googleLoginButton) {
+            googleLoginButton.disabled = false;
+
+            const googleLoginText =
+                googleLoginButton.querySelector("span");
+
+            if (googleLoginText) {
+                googleLoginText.textContent =
+                    "Continue with Google";
+            }
+        }
     }
 
 });
-

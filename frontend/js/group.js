@@ -97,6 +97,26 @@ async function loadGroupPage() {
   try {
     await loadGroup();
 
+    if (currentGroup.type === "personal") {
+      groupDescription.textContent = "Your personal expenses";
+
+      // Only load expenses for personal group
+      await loadExpenses();
+
+      // Hide personal-group sections
+      document.querySelector(".members-section")?.classList.add("hidden");
+      document.querySelector(".group-balance-section")?.classList.add("hidden");
+      document.querySelector(".settlements-section")?.classList.add("hidden");
+
+      // Hide Add Member button
+      addMemberButton?.classList.add("hidden");
+
+      return;
+    }
+
+    // Normal group
+    groupDescription.textContent = "Group expenses and settlements";
+
     await loadMembers();
 
     await Promise.all([loadExpenses(), loadBalance(), loadSettlements()]);
