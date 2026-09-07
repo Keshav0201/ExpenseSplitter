@@ -2,6 +2,7 @@ const {
   createExpense,
   getGroupExpenses,
   getExpenseById,
+  getUserExpensesFromDate,
 } = require("../services/expenseService");
 
 const createNewExpense = async (req, res) => {
@@ -167,8 +168,43 @@ const getExpense = async (req, res) => {
   }
 };
 
+const getMyExpenses = async (req, res) => {
+  try {
+    const { fromDate } = req.query;
+
+    if (!fromDate) {
+      return res.status(400).json({
+        success: false,
+        message: "fromDate is required",
+      });
+    }
+
+    const expenses = await getUserExpensesFromDate(req.user.uid, fromDate);
+
+    res.status(200).json({
+      success: true,
+      data: expenses,
+    });
+  } catch (error) {
+    console.error("Get user expenses error:", error);
+
+    if (error.message === "INVALID_DATE") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to get user expenses",
+    });
+  }
+};
+
 module.exports = {
   createNewExpense,
   getExpenses,
   getExpense,
+  getMyExpenses,
 };

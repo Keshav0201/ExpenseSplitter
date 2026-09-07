@@ -35,48 +35,28 @@ const logoutButton = document.getElementById("logout-btn");
 
 // Add member
 const addMemberButton = document.getElementById("add-member-btn");
-
 const addMemberModal = document.getElementById("add-member-modal");
-
 const addMemberForm = document.getElementById("add-member-form");
-
 const memberEmail = document.getElementById("member-email");
-
 const memberError = document.getElementById("member-error");
-
 const submitMemberButton = document.getElementById("submit-member-btn");
-
 const cancelMemberButton = document.getElementById("cancel-member-btn");
-
 const closeMemberButton = document.getElementById("close-member-btn");
 
 // Expense
 const addExpenseButton = document.getElementById("add-expense-btn");
-
 const expenseModal = document.getElementById("expense-modal");
-
 const expenseForm = document.getElementById("expense-form");
-
 const expenseDescription = document.getElementById("expense-description");
-
 const expenseAmount = document.getElementById("expense-amount");
-
 const expensePaidBy = document.getElementById("expense-paid-by");
-
 const expenseSplitType = document.getElementById("expense-split-type");
-
 const participantsList = document.getElementById("participants-list");
-
 const expenseCategory = document.getElementById("expense-category");
-
 const expenseDate = document.getElementById("expense-date");
-
 const expenseError = document.getElementById("expense-error");
-
 const submitExpenseButton = document.getElementById("submit-expense-btn");
-
 const cancelExpenseButton = document.getElementById("cancel-expense-btn");
-
 const closeExpenseButton = document.getElementById("close-expense-btn");
 
 // ================================
@@ -257,16 +237,15 @@ async function loadBalance() {
 // ================================
 
 async function loadExpenses() {
-    try {
-        const response = await api.get(`/groups/${groupId}/expenses`);
-        const expenses = response.data || [];
+  try {
+    const response = await api.get(`/groups/${groupId}/expenses`);
+    const expenses = response.data || [];
 
-        renderExpenses(expenses);
-
-    } catch (error) {
-        console.error("Failed to load expenses:", error);
-        showToast("Failed to load expenses");
-    }
+    renderExpenses(expenses);
+  } catch (error) {
+    console.error("Failed to load expenses:", error);
+    showToast("Failed to load expenses");
+  }
 }
 
 function renderExpenses(expenses) {
@@ -381,9 +360,51 @@ function renderSettlements(settlements) {
 
     amount.textContent = formatCurrency(settlement.amountPaise);
 
+    const button = document.createElement("button");
+
+    button.className = "settlement-button";
+
+    button.textContent = "Mark as Paid";
+
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+
+      button.textContent = "Marking as Paid...";
+
+      try {
+        const response = await api.post(`/groups/${groupId}/settlements`, {
+          from: settlement.from,
+          to: settlement.to,
+          amountPaise: settlement.amountPaise,
+        });
+        settlement = response.data;
+        console.log("Settlement created:", settlement);
+        await api.patch(
+          `/groups/${groupId}/settlements/${settlement.id}/complete`,
+          {
+            from: settlement.from,
+            to: settlement.to,
+            amountPaise: settlement.amountPaise,
+          }
+        );
+
+        await Promise.all([loadBalance(), loadSettlements()]);
+      } catch (error) {
+        console.error("Settlement failed:", error);
+
+        showToast("Failed to settle.");
+      } finally {
+        button.disabled = false;
+
+        button.textContent = "Mark as Paid";
+      }
+    });
+
     card.appendChild(info);
 
     card.appendChild(amount);
+
+    card.appendChild(button);
 
     settlementsContainer.appendChild(card);
   });

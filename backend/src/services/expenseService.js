@@ -4,124 +4,148 @@ const { calculateSplit } = require("../utils/splitCalculator");
 const expensesCollection = db.collection("expenses");
 
 const createExpense = async (expenseData) => {
-    const {
-        groupId,
-        description,
-        amountPaise,
-        paidBy,
-        splitType,
-        participants,
-        category,
-        expenseDate,
-        createdBy
-    } = expenseData;
+  const {
+    groupId,
+    description,
+    amountPaise,
+    paidBy,
+    splitType,
+    participants,
+    category,
+    expenseDate,
+    createdBy,
+  } = expenseData;
 
-    // Get group
-    const groupDoc = await db
-        .collection("groups")
-        .doc(groupId)
-        .get();
+  // Get group
+  const groupDoc = await db.collection("groups").doc(groupId).get();
 
-    if (!groupDoc.exists) {
-        throw new Error("GROUP_NOT_FOUND");
+  if (!groupDoc.exists) {
+    throw new Error("GROUP_NOT_FOUND");
+  }
+
+  const group = groupDoc.data();
+
+  // Check payer is a group member
+  if (!group.members?.[paidBy]) {
+    throw new Error("PAYER_NOT_MEMBER");
+  }
+
+  // Check all participants are group members
+  const participantIds = participants.map((participant) => {
+    if (typeof participant === "string") {
+      return participant;
     }
 
-    const group = groupDoc.data();
+    return participant.userId;
+  });
 
-    // Check payer is a group member
-    if (!group.members?.[paidBy]) {
-        throw new Error("PAYER_NOT_MEMBER");
+  for (const userId of participantIds) {
+    if (!group.members?.[userId]) {
+      throw new Error("PARTICIPANT_NOT_MEMBER");
     }
+  }
 
-    // Check all participants are group members
-    const participantIds = participants.map((participant) => {
-        if (typeof participant === "string") {
-            return participant;
-        }
+  // Calculate final split
+  const calculatedParticipants = calculateSplit(
+    amountPaise,
+    splitType,
+    participants
+  );
 
-        return participant.userId;
-    });
+  // Create expense
+  const expenseRef = expensesCollection.doc();
 
-    for (const userId of participantIds) {
-        if (!group.members?.[userId]) {
-            throw new Error("PARTICIPANT_NOT_MEMBER");
-        }
-    }
+  const expense = {
+    groupId,
+    description,
+    amountPaise,
+    currency: "INR",
 
-    // Calculate final split
-    const calculatedParticipants = calculateSplit(
-        amountPaise,
-        splitType,
-        participants
-    );
+    paidBy,
 
-    // Create expense
-    const expenseRef = expensesCollection.doc();
+    splitType,
 
-    const expense = {
-        groupId,
-        description,
-        amountPaise,
-        currency: "INR",
+    participants: calculatedParticipants,
 
-        paidBy,
+    category,
 
-        splitType,
+    expenseDate,
 
-        participants: calculatedParticipants,
+    createdBy,
 
-        category,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 
-        expenseDate,
+  await expenseRef.set(expense);
 
-        createdBy,
-
-        createdAt: new Date(),
-        updatedAt: new Date()
-    };
-
-    await expenseRef.set(expense);
-
-    return {
-        id: expenseRef.id,
-        ...expense
-    };
+  return {
+    id: expenseRef.id,
+    ...expense,
+  };
 };
 
 const getGroupExpenses = async (groupId) => {
-    const snapshot = await expensesCollection
-        .where("groupId", "==", groupId)
-        .get();
+  const snapshot = await expensesCollection
+    .where("groupId", "==", groupId)
+    .get();
 
-    const expenses = [];
+  const expenses = [];
 
-    snapshot.forEach((doc) => {
-        expenses.push({
-            id: doc.id,
-            ...doc.data()
-        });
+  snapshot.forEach((doc) => {
+    expenses.push({
+      id: doc.id,
+      ...doc.data(),
     });
+  });
 
-    return expenses;
+  return expenses;
 };
 
 const getExpenseById = async (expenseId) => {
-    const expenseDoc = await expensesCollection
-        .doc(expenseId)
-        .get();
+  const expenseDoc = await expensesCollection.doc(expenseId).get();
 
-    if (!expenseDoc.exists) {
-        return null;
+  if (!expenseDoc.exists) {
+    return null;
+  }
+
+  return {
+    id: expenseDoc.id,
+    ...expenseDoc.data(),
+  };
+};
+
+const getUserExpensesFromDate = async (uid, fromDate) => {
+  const today = new Date().toISOString().split("T")[0];
+
+  const snapshot = await expensesCollection
+    .where("expenseDate", ">=", fromDate)
+    .where("expenseDate", "<=", today)
+    .get();
+
+  const expenses = [];
+
+  snapshot.forEach((doc) => {
+    const expense = doc.data();
+
+    const isParticipant = expense.participants?.some(
+      (participant) => participant.userId === uid
+    );
+
+    if (isParticipant) {
+      expenses.push({
+        date: expense.expenseDate,
+        amountPaise: expense.amountPaise,
+      });
     }
+  });
 
-    return {
-        id: expenseDoc.id,
-        ...expenseDoc.data()
-    };
+  return expenses;
 };
 
 module.exports = {
-    createExpense,
-    getGroupExpenses,
-    getExpenseById
+  createExpense,
+  getGroupExpenses,
+  getExpenseById,
+  getUserExpensesFromDate,
 };

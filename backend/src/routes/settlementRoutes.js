@@ -13,6 +13,7 @@ const {
 
 const router = express.Router();
 
+
 // Calculate settlement suggestions
 router.get(
   "/:groupId/settlements",
@@ -20,6 +21,7 @@ router.get(
   requireGroupMember,
   getSettlements
 );
+
 
 // Create settlement record
 router.post(
@@ -29,6 +31,7 @@ router.post(
   createNewSettlement
 );
 
+
 // Get settlement history
 router.get(
   "/:groupId/settlements/history",
@@ -36,6 +39,7 @@ router.get(
   requireGroupMember,
   getAllSettlements
 );
+
 
 // Get one settlement
 router.get(
@@ -45,11 +49,16 @@ router.get(
   getSettlement
 );
 
+
+
+
+// Complete settlement
 router.patch(
   "/:groupId/settlements/:settlementId/complete",
   authenticateUser,
   requireGroupMember,
   completeExistingSettlement
 );
+
 
 module.exports = router;

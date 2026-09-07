@@ -1,170 +1,135 @@
 import { auth } from "./firebase.js";
 
 import {
-    onAuthStateChanged,
-    signOut
+  onAuthStateChanged,
+  signOut,
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
 import { api } from "./api.js";
 
+const welcomeName = document.getElementById("welcome-name");
 
-const welcomeName =
-    document.getElementById("welcome-name");
+const userName = document.getElementById("user-name");
 
-const userName =
-    document.getElementById("user-name");
+const userPhoto = document.getElementById("user-photo");
 
-const userPhoto =
-    document.getElementById("user-photo");
+const totalOwe = document.getElementById("total-owe");
 
-const totalOwe =
-    document.getElementById("total-owe");
+const totalOwed = document.getElementById("total-owed");
 
-const totalOwed =
-    document.getElementById("total-owed");
+const groupsContainer = document.getElementById("groups-container");
 
-const groupsContainer =
-    document.getElementById("groups-container");
+const logoutButton = document.getElementById("logout-btn");
 
-const logoutButton =
-    document.getElementById("logout-btn");
+const createGroupButton = document.getElementById("create-group-btn");
 
-const createGroupButton =
-    document.getElementById("create-group-btn");
+const createGroupModal = document.getElementById("create-group-modal");
 
-const createGroupModal =
-    document.getElementById("create-group-modal");
+const createGroupForm = document.getElementById("create-group-form");
 
-const createGroupForm =
-    document.getElementById("create-group-form");
+const cancelGroupButton = document.getElementById("cancel-group-btn");
 
-const cancelGroupButton =
-    document.getElementById("cancel-group-btn");
+const closeGroupButton = document.getElementById("close-group-btn");
 
-const closeGroupButton =
-    document.getElementById("close-group-btn");
+const groupNameInput = document.getElementById("group-name");
 
-const groupNameInput =
-    document.getElementById("group-name");
+const groupError = document.getElementById("group-error");
 
-const groupError =
-    document.getElementById("group-error");
-
-const submitGroupButton =
-    document.getElementById("submit-group-btn");
-
+const submitGroupButton = document.getElementById("submit-group-btn");
 
 /*
  * Authentication
  */
 
 onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    window.location.href = "./login.html";
 
-    if (!user) {
+    return;
+  }
 
-        window.location.href = "./login.html";
+  try {
+    const today = new Date();
+    const fromDate = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+        1
+    )
+      .toISOString()
+      .split("T")[0];
 
-        return;
-    }
+    const response = await api.get(`/users/me/expenses?fromDate=${fromDate}`);
 
+    console.log("User expenses:", response.data);
+  } catch (error) {
+    console.error("Failed to fetch user expenses:", error);
+  }
 
-    renderUser(user);
+  renderUser(user);
 
-
-    await loadDashboard();
-
+  await loadDashboard();
 });
-
 
 /*
  * User information
  */
 
-function renderUser(user) {
+async function renderUser(user) {
+  const name = user.displayName || "User";
 
-    const name =
-        user.displayName || "User";
+  welcomeName.textContent = name;
 
-    welcomeName.textContent = name;
+  userName.textContent = name;
 
-    userName.textContent = name;
-
-
-    if (user.photoURL) {
-
-        userPhoto.src = user.photoURL;
-
-    } else {
-
-        userPhoto.style.display = "none";
-
-    }
-
+  if (user.photoURL) {
+    userPhoto.src = user.photoURL;
+  } else {
+    userPhoto.style.display = "none";
+  }
 }
-
 
 /*
  * Dashboard data
  */
 
 async function loadDashboard() {
-
-    await Promise.all([
-        loadGroups()
-    ]);
-
+  await Promise.all([loadGroups()]);
 }
-
 
 /*
  * Groups
  */
 
 async function loadGroups() {
-
-    groupsContainer.innerHTML = `
+  groupsContainer.innerHTML = `
         <div class="loading-state">
             Loading groups...
         </div>
     `;
 
+  try {
+    const response = await api.get("/groups");
 
-    try {
+    const groups = response.data || [];
 
-        const response =
-            await api.get("/groups");
+    renderGroups(groups);
 
-        const groups =
-            response.data || [];
+    await loadBalances(groups);
+  } catch (error) {
+    console.error("Failed to load groups:", error);
 
-        renderGroups(groups);
-
-        await loadBalances(groups);
-
-    } catch (error) {
-
-        console.error(
-            "Failed to load groups:",
-            error
-        );
-
-        groupsContainer.innerHTML = `
+    groupsContainer.innerHTML = `
             <div class="error-state">
                 Unable to load your groups.
                 Please try again.
             </div>
         `;
-
-    }
-
+  }
 }
 
-
 function renderGroups(groups) {
-
-    if (groups.length === 0) {
-
-        groupsContainer.innerHTML = `
+  if (groups.length === 0) {
+    groupsContainer.innerHTML = `
             <div class="empty-state">
                 <p>You haven't joined any groups yet.</p>
 
@@ -177,313 +142,181 @@ function renderGroups(groups) {
             </div>
         `;
 
+    document
+      .getElementById("empty-create-group-btn")
+      .addEventListener("click", openCreateGroupModal);
 
-        document
-            .getElementById("empty-create-group-btn")
-            .addEventListener(
-                "click",
-                openCreateGroupModal
-            );
+    return;
+  }
 
-        return;
-    }
+  groupsContainer.innerHTML = "";
 
+  groups.forEach((group) => {
+    const card = document.createElement("div");
 
-    groupsContainer.innerHTML = "";
+    card.className = "group-card";
 
+    const title = document.createElement("h3");
 
-    groups.forEach(group => {
+    title.textContent = group.name || "Unnamed Group";
 
-        const card =
-            document.createElement("div");
+    const description = document.createElement("p");
 
-        card.className = "group-card";
+    description.textContent = "View group details";
 
+    card.appendChild(title);
 
-        const title =
-            document.createElement("h3");
+    card.appendChild(description);
 
-        title.textContent =
-            group.name || "Unnamed Group";
-
-
-        const description =
-            document.createElement("p");
-
-        description.textContent =
-            "View group details";
-
-
-        card.appendChild(title);
-
-        card.appendChild(description);
-
-
-        card.addEventListener("click", () => {
-
-            window.location.href =
-                `./group.html?id=${group.id}`;
-
-        });
-
-
-        groupsContainer.appendChild(card);
-
+    card.addEventListener("click", () => {
+      window.location.href = `./group.html?id=${group.id}`;
     });
 
+    groupsContainer.appendChild(card);
+  });
 }
-
 
 /*
  * Balances
  */
 
 async function loadBalances(groups) {
+  let owePaise = 0;
+  let owedPaise = 0;
 
-    let owePaise = 0;
-    let owedPaise = 0;
+  try {
+    const balanceRequests = groups.map((group) =>
+      api.get(`/groups/${group.id}/balances`)
+    );
 
+    const responses = await Promise.all(balanceRequests);
 
-    try {
+    responses.forEach((response) => {
+      const balances = response.data || [];
 
-        const balanceRequests =
-            groups.map(group =>
-                api.get(
-                    `/groups/${group.id}/balances`
-                )
-            );
+      balances.forEach((balance) => {
+        if (balance.userId !== auth.currentUser.uid) {
+          return;
+        }
 
+        const amount = balance.balancePaise || 0;
 
-        const responses =
-            await Promise.all(balanceRequests);
+        if (amount < 0) {
+          owePaise += Math.abs(amount);
+        } else if (amount > 0) {
+          owedPaise += amount;
+        }
+      });
+    });
 
+    totalOwe.textContent = formatCurrency(owePaise);
 
-        responses.forEach(response => {
+    totalOwed.textContent = formatCurrency(owedPaise);
+  } catch (error) {
+    console.error("Failed to load balances:", error);
 
-            const balances =
-                response.data || [];
+    totalOwe.textContent = "—";
 
-
-            balances.forEach(balance => {
-
-                if (
-                    balance.userId !==
-                    auth.currentUser.uid
-                ) {
-                    return;
-                }
-
-
-                const amount =
-                    balance.balancePaise || 0;
-
-
-                if (amount < 0) {
-
-                    owePaise += Math.abs(amount);
-
-                } else if (amount > 0) {
-
-                    owedPaise += amount;
-
-                }
-
-            });
-
-        });
-
-
-        totalOwe.textContent =
-            formatCurrency(owePaise);
-
-        totalOwed.textContent =
-            formatCurrency(owedPaise);
-
-
-    } catch (error) {
-
-        console.error(
-            "Failed to load balances:",
-            error
-        );
-
-        totalOwe.textContent = "—";
-
-        totalOwed.textContent = "—";
-
-    }
-
+    totalOwed.textContent = "—";
+  }
 }
-
 
 /*
  * Create group modal
  */
 
 function openCreateGroupModal() {
+  createGroupModal.classList.remove("hidden");
 
-    createGroupModal.classList.remove("hidden");
+  groupError.textContent = "";
 
-    groupError.textContent = "";
+  groupNameInput.value = "";
 
-    groupNameInput.value = "";
-
-    groupNameInput.focus();
-
+  groupNameInput.focus();
 }
-
 
 function closeCreateGroupModal() {
+  createGroupModal.classList.add("hidden");
 
-    createGroupModal.classList.add("hidden");
+  createGroupForm.reset();
 
-    createGroupForm.reset();
-
-    groupError.textContent = "";
-
+  groupError.textContent = "";
 }
 
+createGroupButton.addEventListener("click", openCreateGroupModal);
 
-createGroupButton.addEventListener(
-    "click",
-    openCreateGroupModal
-);
+cancelGroupButton.addEventListener("click", closeCreateGroupModal);
 
-
-cancelGroupButton.addEventListener(
-    "click",
-    closeCreateGroupModal
-);
-
-
-closeGroupButton.addEventListener(
-    "click",
-    closeCreateGroupModal
-);
-
+closeGroupButton.addEventListener("click", closeCreateGroupModal);
 
 /*
  * Create group
  */
 
-createGroupForm.addEventListener(
-    "submit",
-    async (event) => {
+createGroupForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
 
-        event.preventDefault();
+  const name = groupNameInput.value.trim();
 
+  if (!name) {
+    groupError.textContent = "Please enter a group name.";
 
-        const name =
-            groupNameInput.value.trim();
+    return;
+  }
 
+  try {
+    submitGroupButton.disabled = true;
 
-        if (!name) {
+    submitGroupButton.textContent = "Creating...";
 
-            groupError.textContent =
-                "Please enter a group name.";
+    await api.post("/groups", {
+      name: name,
+    });
 
-            return;
-        }
+    closeCreateGroupModal();
 
+    await loadGroups();
+  } catch (error) {
+    console.error("Create group failed:", error);
 
-        try {
+    groupError.textContent = error.message || "Unable to create group.";
+  } finally {
+    submitGroupButton.disabled = false;
 
-            submitGroupButton.disabled = true;
-
-            submitGroupButton.textContent =
-                "Creating...";
-
-
-            await api.post("/groups", {
-                name: name
-            });
-
-
-            closeCreateGroupModal();
-
-
-            await loadGroups();
-
-
-        } catch (error) {
-
-            console.error(
-                "Create group failed:",
-                error
-            );
-
-            groupError.textContent =
-                error.message ||
-                "Unable to create group.";
-
-
-        } finally {
-
-            submitGroupButton.disabled = false;
-
-            submitGroupButton.textContent =
-                "Create Group";
-
-        }
-
-    }
-);
-
+    submitGroupButton.textContent = "Create Group";
+  }
+});
 
 /*
  * Logout
  */
 
-logoutButton.addEventListener(
-    "click",
-    async () => {
+logoutButton.addEventListener("click", async () => {
+  try {
+    logoutButton.disabled = true;
 
-        try {
+    logoutButton.textContent = "Logging out...";
 
-            logoutButton.disabled = true;
+    await signOut(auth);
 
-            logoutButton.textContent =
-                "Logging out...";
+    window.location.href = "./login.html";
+  } catch (error) {
+    console.error("Logout failed:", error);
 
+    logoutButton.disabled = false;
 
-            await signOut(auth);
-
-
-            window.location.href =
-                "./login.html";
-
-
-        } catch (error) {
-
-            console.error(
-                "Logout failed:",
-                error
-            );
-
-            logoutButton.disabled = false;
-
-            logoutButton.textContent =
-                "Logout";
-
-        }
-
-    }
-);
-
+    logoutButton.textContent = "Logout";
+  }
+});
 
 /*
  * Currency
  */
 
 function formatCurrency(paise) {
-
-    return new Intl.NumberFormat(
-        "en-IN",
-        {
-            style: "currency",
-            currency: "INR",
-            minimumFractionDigits: 2
-        }
-    ).format(paise / 100);
-
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+  }).format(paise / 100);
 }

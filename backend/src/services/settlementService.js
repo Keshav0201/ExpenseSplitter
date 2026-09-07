@@ -1,240 +1,278 @@
 const { db } = require("../config/firebase");
-const {
-    getGroupBalances
-} = require("./balanceService");
+const { getGroupBalances } = require("./balanceService");
 
 const settlementsCollection = db.collection("settlements");
 
+// ============================================================
+// 1. CALCULATE SETTLEMENT SUGGESTIONS
+// ============================================================
 
-// Calculate settlement suggestions
 const calculateSettlements = async (groupId) => {
+  const balances = await getGroupBalances(groupId);
 
-    const balances = await getGroupBalances(groupId);
+  const creditors = [];
+  const debtors = [];
 
-    const creditors = [];
-    const debtors = [];
-
-    for (const user of balances) {
-
-        if (user.balancePaise > 0) {
-            creditors.push({
-                userId: user.userId,
-                amountPaise: user.balancePaise
-            });
-        }
-
-        if (user.balancePaise < 0) {
-            debtors.push({
-                userId: user.userId,
-                amountPaise: Math.abs(user.balancePaise)
-            });
-        }
+  for (const user of balances) {
+    if (user.balancePaise > 0) {
+      creditors.push({
+        userId: user.userId,
+        amountPaise: user.balancePaise,
+      });
     }
 
-    const settlements = [];
+    if (user.balancePaise < 0) {
+      debtors.push({
+        userId: user.userId,
+        amountPaise: Math.abs(user.balancePaise),
+      });
+    }
+  }
 
-    let creditorIndex = 0;
-    let debtorIndex = 0;
+  const settlements = [];
 
-    while (
-        creditorIndex < creditors.length &&
-        debtorIndex < debtors.length
-    ) {
+  let creditorIndex = 0;
+  let debtorIndex = 0;
 
-        const creditor = creditors[creditorIndex];
-        const debtor = debtors[debtorIndex];
+  while (creditorIndex < creditors.length && debtorIndex < debtors.length) {
+    const creditor = creditors[creditorIndex];
+    const debtor = debtors[debtorIndex];
 
-        const settlementAmount = Math.min(
-            creditor.amountPaise,
-            debtor.amountPaise
-        );
+    const settlementAmount = Math.min(creditor.amountPaise, debtor.amountPaise);
 
-        settlements.push({
-            from: debtor.userId,
-            to: creditor.userId,
-            amountPaise: settlementAmount
-        });
+    settlements.push({
+      from: debtor.userId,
+      to: creditor.userId,
+      amountPaise: settlementAmount,
+    });
 
-        creditor.amountPaise -= settlementAmount;
-        debtor.amountPaise -= settlementAmount;
+    creditor.amountPaise -= settlementAmount;
+    debtor.amountPaise -= settlementAmount;
 
-        if (creditor.amountPaise === 0) {
-            creditorIndex++;
-        }
-
-        if (debtor.amountPaise === 0) {
-            debtorIndex++;
-        }
+    if (creditor.amountPaise === 0) {
+      creditorIndex++;
     }
 
-    return settlements;
+    if (debtor.amountPaise === 0) {
+      debtorIndex++;
+    }
+  }
+
+  return settlements;
 };
 
+// ============================================================
+// 2. CREATE SETTLEMENT
+// ============================================================
 
 const createSettlement = async (settlementData) => {
+  const { groupId, from, to, amountPaise, createdBy } = settlementData;
 
-    const {
-        groupId,
-        from,
-        to,
-        amountPaise,
-        createdBy
-    } = settlementData;
+  // --------------------------------------------------------
+  // Check group
+  // --------------------------------------------------------
 
-    // Make sure group exists
-    const groupDoc = await db
-        .collection("groups")
-        .doc(groupId)
-        .get();
+  const groupDoc = await db.collection("groups").doc(groupId).get();
 
-    if (!groupDoc.exists) {
-        throw new Error("GROUP_NOT_FOUND");
-    }
+  if (!groupDoc.exists) {
+    throw new Error("GROUP_NOT_FOUND");
+  }
 
-    const group = groupDoc.data();
+  const group = groupDoc.data();
 
-    // Both users must be group members
-    if (!group.members?.[from]) {
-        throw new Error("PAYER_NOT_MEMBER");
-    }
+  // --------------------------------------------------------
+  // Check members
+  // --------------------------------------------------------
 
-    if (!group.members?.[to]) {
-        throw new Error("RECEIVER_NOT_MEMBER");
-    }
+  if (!group.members?.[from]) {
+    throw new Error("PAYER_NOT_MEMBER");
+  }
 
-    // User cannot pay themselves
-    if (from === to) {
-        throw new Error("INVALID_SETTLEMENT_USERS");
-    }
+  if (!group.members?.[to]) {
+    throw new Error("RECEIVER_NOT_MEMBER");
+  }
 
-    // Validate amount
-    if (!Number.isInteger(amountPaise) || amountPaise <= 0) {
-        throw new Error("INVALID_AMOUNT");
-    }
+  // --------------------------------------------------------
+  // Cannot pay yourself
+  // --------------------------------------------------------
 
-    // Get current settlement suggestions
-    const suggestions = await calculateSettlements(groupId);
+  if (from === to) {
+    throw new Error("INVALID_SETTLEMENT_USERS");
+  }
 
-    // Find the requested settlement
-    const validSuggestion = suggestions.find(
-        (suggestion) =>
-            suggestion.from === from &&
-            suggestion.to === to &&
-            suggestion.amountPaise === amountPaise
-    );
+  // --------------------------------------------------------
+  // Validate amount
+  // --------------------------------------------------------
 
-    if (!validSuggestion) {
-        throw new Error("INVALID_SETTLEMENT");
-    }
+  if (!Number.isInteger(amountPaise) || amountPaise <= 0) {
+    throw new Error("INVALID_AMOUNT");
+  }
 
-    // Prevent duplicate pending/completed settlement
-    const existingSnapshot = await settlementsCollection
-        .where("groupId", "==", groupId)
-        .where("from", "==", from)
-        .where("to", "==", to)
-        .where("amountPaise", "==", amountPaise)
-        .where("status", "==", "pending")
-        .limit(1)
-        .get();
+  // --------------------------------------------------------
+  // Verify that this is a valid current suggestion
+  // --------------------------------------------------------
 
-    if (!existingSnapshot.empty) {
-        throw new Error("SETTLEMENT_ALREADY_EXISTS");
-    }
+  const suggestions = await calculateSettlements(groupId);
 
-    const settlementRef = settlementsCollection.doc();
+  const validSuggestion = suggestions.find(
+    (suggestion) =>
+      suggestion.from === from &&
+      suggestion.to === to &&
+      suggestion.amountPaise === amountPaise
+  );
 
-    const settlement = {
-        groupId,
-        from,
-        to,
-        amountPaise,
-        currency: "INR",
-        status: "pending",
-        createdBy,
-        createdAt: new Date(),
-        completedAt: null
-    };
+  if (!validSuggestion) {
+    throw new Error("INVALID_SETTLEMENT");
+  }
 
-    await settlementRef.set(settlement);
+  // --------------------------------------------------------
+  // Prevent duplicate PENDING settlement
+  // --------------------------------------------------------
+
+  const existingSnapshot = await settlementsCollection
+    .where("groupId", "==", groupId)
+    .where("from", "==", from)
+    .where("to", "==", to)
+    .where("amountPaise", "==", amountPaise)
+    .where("status", "==", "pending")
+    .limit(1)
+    .get();
+
+  if (!existingSnapshot.empty) {
+    const existingDoc = existingSnapshot.docs[0];
 
     return {
-        id: settlementRef.id,
-        ...settlement
+      id: existingDoc.id,
+      ...existingDoc.data(),
     };
+  }
+
+  // --------------------------------------------------------
+  // Create Firestore document
+  // --------------------------------------------------------
+
+  const settlementRef = settlementsCollection.doc();
+
+  const settlement = {
+    groupId,
+    from,
+    to,
+    amountPaise,
+    currency: "INR",
+
+    status: "pending",
+
+    createdBy,
+
+    createdAt: new Date(),
+    completedAt: null,
+  };
+
+  await settlementRef.set(settlement);
+
+  return {
+    id: settlementRef.id,
+    ...settlement,
+  };
 };
 
+// ============================================================
+// 3. GET GROUP SETTLEMENTS
+// ============================================================
 
-// Get all settlements for a group
 const getGroupSettlements = async (groupId) => {
+  const snapshot = await settlementsCollection
+    .where("groupId", "==", groupId)
+    .get();
 
-    const snapshot = await settlementsCollection
-        .where("groupId", "==", groupId)
-        .get();
+  const settlements = [];
 
-    const settlements = [];
-
-    snapshot.forEach((doc) => {
-        settlements.push({
-            id: doc.id,
-            ...doc.data()
-        });
+  snapshot.forEach((doc) => {
+    settlements.push({
+      id: doc.id,
+      ...doc.data(),
     });
+  });
 
-    return settlements;
+  return settlements;
 };
 
+// ============================================================
+// 4. GET ONE SETTLEMENT
+// ============================================================
 
-// Get one settlement
 const getSettlementById = async (settlementId) => {
+  const settlementDoc = await settlementsCollection.doc(settlementId).get();
 
-    const settlementDoc = await settlementsCollection
-        .doc(settlementId)
-        .get();
+  if (!settlementDoc.exists) {
+    return null;
+  }
 
-    if (!settlementDoc.exists) {
-        return null;
-    }
-
-    return {
-        id: settlementDoc.id,
-        ...settlementDoc.data()
-    };
+  return {
+    id: settlementDoc.id,
+    ...settlementDoc.data(),
+  };
 };
+
+// ============================================================
+// 5. COMPLETE SETTLEMENT
+// ============================================================
 
 const completeSettlement = async (settlementId, userId) => {
+  const settlementRef = settlementsCollection.doc(settlementId);
 
-    const settlementRef = settlementsCollection.doc(settlementId);
+  const settlementDoc = await settlementRef.get();
 
-    const settlementDoc = await settlementRef.get();
+  // --------------------------------------------------------
+  // Check settlement
+  // --------------------------------------------------------
 
-    if (!settlementDoc.exists) {
-        throw new Error("SETTLEMENT_NOT_FOUND");
-    }
+  if (!settlementDoc.exists) {
+    throw new Error("SETTLEMENT_NOT_FOUND");
+  }
 
-    const settlement = settlementDoc.data();
+  const settlement = settlementDoc.data();
 
-    // Only the person who needs to pay can complete it
-    if (settlement.from !== userId) {
-        throw new Error("NOT_SETTLEMENT_PAYER");
-    }
+  // --------------------------------------------------------
+  // Only payer can complete it
+  // --------------------------------------------------------
 
-    // Prevent completing an already completed settlement
-    if (settlement.status === "completed") {
-        throw new Error("SETTLEMENT_ALREADY_COMPLETED");
-    }
+  if (settlement.from !== userId) {
+    throw new Error("NOT_SETTLEMENT_PAYER");
+  }
 
-    await settlementRef.update({
-        status: "completed",
-        completedAt: new Date()
-    });
+  // --------------------------------------------------------
+  // Prevent duplicate completion
+  // --------------------------------------------------------
 
-    return getSettlementById(settlementId);
+  if (settlement.status === "completed") {
+    throw new Error("SETTLEMENT_ALREADY_COMPLETED");
+  }
+
+  // --------------------------------------------------------
+  // Complete settlement
+  // --------------------------------------------------------
+
+  await settlementRef.update({
+    status: "completed",
+    completedAt: new Date(),
+  });
+
+  return getSettlementById(settlementId);
 };
 
+// ============================================================
+// EXPORTS
+// ============================================================
+
 module.exports = {
-    calculateSettlements,
-    createSettlement,
-    getGroupSettlements,
-    getSettlementById,
-    completeSettlement
+  calculateSettlements,
+
+  createSettlement,
+
+  getGroupSettlements,
+
+  getSettlementById,
+
+  completeSettlement,
 };

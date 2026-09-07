@@ -9,7 +9,13 @@ const {
   getUserById,
 } = require("../controllers/userController");
 
+const {
+    getMyExpenses
+} = require("../controllers/expenseController");
+
 const router = express.Router();
+
+router.get("/me/expenses", authenticateUser, getMyExpenses);
 
 router.get("/me", authenticateUser, getMyProfile);
 
