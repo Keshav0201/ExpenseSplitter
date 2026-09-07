@@ -5,9 +5,100 @@
 body {
     margin: 0;
     font-family: Arial, sans-serif;
+    background: #f9fafb;
+    color: #111827;
 }
 
-button {
+
+/* Shared Buttons */
+
+.primary-btn,
+.secondary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 10px 16px;
+
+    border-radius: 8px;
+
     font: inherit;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    text-decoration: none;
+}
+
+.primary-btn {
+    border: none;
+
+    background: #111827;
+    color: white;
+}
+
+.primary-btn:hover {
+    background: #1f2937;
+}
+
+.primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.secondary-btn {
+    border: 1px solid #d1d5db;
+
+    background: white;
+    color: #374151;
+}
+
+.secondary-btn:hover {
+    background: #f3f4f6;
+}
+
+
+/* Shared Header */
+
+.group-header {
+    min-height: 72px;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    padding: 0 32px;
+
+    border-bottom: 1px solid #e5e7eb;
+
+    background: white;
+}
+
+.back-link {
+    color: #374151;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.back-link:hover {
+    color: #111827;
+}
+
+.user-profile-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    color: inherit;
+    text-decoration: none;
+
+    cursor: pointer;
+}
+
+.user-profile-link:hover {
+    opacity: 0.8;
+}
+
+.user-profile-link .user-photo {
     cursor: pointer;
 }

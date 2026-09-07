@@ -71,7 +71,6 @@ const calculateSettlements = async (groupId) => {
 };
 
 
-// Create a settlement record
 const createSettlement = async (settlementData) => {
 
     const {
@@ -82,6 +81,7 @@ const createSettlement = async (settlementData) => {
         createdBy
     } = settlementData;
 
+    // Make sure group exists
     const groupDoc = await db
         .collection("groups")
         .doc(groupId)
@@ -93,7 +93,7 @@ const createSettlement = async (settlementData) => {
 
     const group = groupDoc.data();
 
-    // Both users must belong to the group
+    // Both users must be group members
     if (!group.members?.[from]) {
         throw new Error("PAYER_NOT_MEMBER");
     }
@@ -102,7 +102,7 @@ const createSettlement = async (settlementData) => {
         throw new Error("RECEIVER_NOT_MEMBER");
     }
 
-    // Cannot pay yourself
+    // User cannot pay themselves
     if (from === to) {
         throw new Error("INVALID_SETTLEMENT_USERS");
     }
@@ -110,6 +110,35 @@ const createSettlement = async (settlementData) => {
     // Validate amount
     if (!Number.isInteger(amountPaise) || amountPaise <= 0) {
         throw new Error("INVALID_AMOUNT");
+    }
+
+    // Get current settlement suggestions
+    const suggestions = await calculateSettlements(groupId);
+
+    // Find the requested settlement
+    const validSuggestion = suggestions.find(
+        (suggestion) =>
+            suggestion.from === from &&
+            suggestion.to === to &&
+            suggestion.amountPaise === amountPaise
+    );
+
+    if (!validSuggestion) {
+        throw new Error("INVALID_SETTLEMENT");
+    }
+
+    // Prevent duplicate pending/completed settlement
+    const existingSnapshot = await settlementsCollection
+        .where("groupId", "==", groupId)
+        .where("from", "==", from)
+        .where("to", "==", to)
+        .where("amountPaise", "==", amountPaise)
+        .where("status", "==", "pending")
+        .limit(1)
+        .get();
+
+    if (!existingSnapshot.empty) {
+        throw new Error("SETTLEMENT_ALREADY_EXISTS");
     }
 
     const settlementRef = settlementsCollection.doc();

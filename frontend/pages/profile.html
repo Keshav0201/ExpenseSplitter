@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Profile | Expense Splitter</title>
+
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/profile.css">
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header class="group-header">
+
+        <a href="./dashboard.html" class="back-link">
+            ← Dashboard
+        </a>
+
+        <button
+            id="logout-btn"
+            class="secondary-btn"
+        >
+            Logout
+        </button>
+
+    </header>
+
+
+    <main class="profile-page">
+
+        <section class="profile-section">
+
+            <div class="section-header">
+
+                <div>
+                    <p class="eyebrow">Account</p>
+                    <h1>Profile</h1>
+                </div>
+
+            </div>
+
+
+            <form id="profile-form">
+
+                <!-- Name -->
+                <label for="profile-name">
+                    Name
+                </label>
+
+                <input
+                    type="text"
+                    id="profile-name"
+                    placeholder="Your name"
+                    required
+                >
+
+
+                <!-- Email -->
+                <label for="profile-email">
+                    Email
+                </label>
+
+                <input
+                    type="email"
+                    id="profile-email"
+                    disabled
+                >
+
+
+                <!-- UPI ID -->
+                <label for="profile-upi">
+                    UPI ID
+                </label>
+
+                <input
+                    type="text"
+                    id="profile-upi"
+                    placeholder="example@upi"
+                >
+
+                <p class="input-hint">
+                    Add your UPI ID so group members can pay you directly.
+                </p>
+
+
+                <p
+                    id="profile-error"
+                    class="form-error"
+                ></p>
+
+                <p
+                    id="profile-success"
+                    class="success-message"
+                ></p>
+
+
+                <button
+                    type="submit"
+                    id="save-profile-btn"
+                    class="primary-btn"
+                >
+                    Save Changes
+                </button>
+
+            </form>
+
+        </section>
+
+    </main>
+
+
+    <script type="module" src="../js/profile.js"></script>
+
+</body>
+
+</html>
