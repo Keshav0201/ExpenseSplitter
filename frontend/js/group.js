@@ -360,52 +360,50 @@ function renderSettlements(settlements) {
 
     amount.textContent = formatCurrency(settlement.amountPaise);
 
-    const button = document.createElement("button");
-
-    button.className = "settlement-button";
-
-    button.textContent = "Mark as Paid";
-
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-
-      button.textContent = "Marking as Paid...";
-
-      try {
-        const response = await api.post(`/groups/${groupId}/settlements`, {
-          from: settlement.from,
-          to: settlement.to,
-          amountPaise: settlement.amountPaise,
-        });
-        settlement = response.data;
-        console.log("Settlement created:", settlement);
-        await api.patch(
-          `/groups/${groupId}/settlements/${settlement.id}/complete`,
-          {
-            from: settlement.from,
-            to: settlement.to,
-            amountPaise: settlement.amountPaise,
-          }
-        );
-
-        await Promise.all([loadBalance(), loadSettlements()]);
-      } catch (error) {
-        console.error("Settlement failed:", error);
-
-        showToast("Failed to settle.");
-      } finally {
-        button.disabled = false;
-
-        button.textContent = "Mark as Paid";
-      }
-    });
-
     card.appendChild(info);
 
     card.appendChild(amount);
 
-    card.appendChild(button);
+    if (settlement.from === auth.currentUser.uid) {
+      const button = document.createElement("button");
 
+      button.className = "settlement-button";
+      button.textContent = "Mark as Paid";
+
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        button.textContent = "Marking as Paid...";
+
+        try {
+          const response = await api.post(`/groups/${groupId}/settlements`, {
+            from: settlement.from,
+            to: settlement.to,
+            amountPaise: settlement.amountPaise,
+          });
+
+          settlement = response.data;
+
+          await api.patch(
+            `/groups/${groupId}/settlements/${settlement.id}/complete`,
+            {
+              from: settlement.from,
+              to: settlement.to,
+              amountPaise: settlement.amountPaise,
+            }
+          );
+
+          await Promise.all([loadBalance(), loadSettlements()]);
+        } catch (error) {
+          console.error("Settlement failed:", error);
+          showToast("Failed to settle.");
+        } finally {
+          button.disabled = false;
+          button.textContent = "Mark as Paid";
+        }
+      });
+
+      card.appendChild(button);
+    }
     settlementsContainer.appendChild(card);
   });
 }

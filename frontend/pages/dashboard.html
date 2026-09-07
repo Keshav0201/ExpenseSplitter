@@ -69,6 +69,33 @@
         </div>
       </section>
 
+      <section class="spending-section">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Your spending</p>
+            <h2>Spending Overview</h2>
+          </div>
+
+          <select id="spending-range">
+            <option value="7">Last 7 Days</option>
+            <option value="month" selected>This Month</option>
+            <option value="6months">Last 6 Months</option>
+            <option value="year">This Year</option>
+          </select>
+        </div>
+
+        <div class="spending-card">
+          <div class="spending-summary">
+            <span>Total spending</span>
+            <strong id="spending-total">₹0</strong>
+          </div>
+
+          <div class="chart-container">
+            <canvas id="spending-chart"></canvas>
+          </div>
+        </div>
+      </section>
+
       <!-- Groups -->
       <section class="groups-section">
         <div class="section-header">
@@ -130,6 +157,8 @@
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module" src="../js/dashboard.js"></script>
     <script type="module" src="../js/dashboard.js"></script>
   </body>
 </html>

@@ -7,6 +7,10 @@ import {
 
 import { api } from "./api.js";
 
+// =========================
+// DOM Elements
+// =========================
+
 const welcomeName = document.getElementById("welcome-name");
 
 const userName = document.getElementById("user-name");
@@ -37,9 +41,216 @@ const groupError = document.getElementById("group-error");
 
 const submitGroupButton = document.getElementById("submit-group-btn");
 
-/*
- * Authentication
- */
+// =========================
+// Spending Chart
+// =========================
+
+let spendingChart = null;
+
+let userExpenses = [];
+
+async function loadUserExpenses(fromDate) {
+  try {
+    const response = await api.get(`/users/me/expenses?fromDate=${fromDate}`);
+
+    userExpenses = response.data || [];
+
+    renderSpendingChart();
+  } catch (error) {
+    console.error("Failed to load user expenses:", error);
+  }
+}
+
+// =========================
+// Date Helpers
+// =========================
+
+function getFromDate(range) {
+  const today = new Date();
+
+  // Last 7 days
+  if (range === "7") {
+    const date = new Date(today);
+
+    date.setDate(today.getDate() - 6);
+
+    return formatDate(date);
+  }
+
+  // This month
+  if (range === "month") {
+    return formatDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  }
+
+  // Last 6 months
+  if (range === "6months") {
+    const date = new Date(today);
+
+    date.setMonth(today.getMonth() - 5);
+
+    date.setDate(1);
+
+    return formatDate(date);
+  }
+
+  // This year
+  if (range === "year") {
+    return formatDate(new Date(today.getFullYear(), 0, 1));
+  }
+
+  // Default
+  return formatDate(today);
+}
+
+function formatDate(date) {
+  const year = date.getFullYear();
+
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+// =========================
+// Render Spending Chart
+// =========================
+
+function renderSpendingChart() {
+  const range = document.getElementById("spending-range").value;
+
+  const groupedExpenses = {};
+
+  userExpenses.forEach((expense) => {
+    const date = expense.date;
+
+    if (!groupedExpenses[date]) {
+      groupedExpenses[date] = 0;
+    }
+
+    groupedExpenses[date] += expense.amountPaise;
+  });
+
+  const dates = Object.keys(groupedExpenses).sort();
+
+  const labels = dates.map((date) => {
+    const d = new Date(`${date}T00:00:00`);
+
+    return d.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+    });
+  });
+
+  const amounts = dates.map((date) => groupedExpenses[date] / 100);
+
+  // Total spending
+
+  const totalPaise = userExpenses.reduce(
+    (sum, expense) => sum + expense.amountPaise,
+    0
+  );
+
+  document.getElementById("spending-total").textContent = `₹${(
+    totalPaise / 100
+  ).toLocaleString("en-IN")}`;
+
+  // Chart
+
+  const canvas = document.getElementById("spending-chart");
+
+  if (!canvas) {
+    return;
+  }
+
+  const ctx = canvas.getContext("2d");
+
+  if (spendingChart) {
+    spendingChart.destroy();
+  }
+
+  spendingChart = new Chart(ctx, {
+    type: "line",
+
+    data: {
+      labels,
+
+      datasets: [
+        {
+          label: "Spending",
+
+          data: amounts,
+
+          borderWidth: 2,
+
+          tension: 0.35,
+
+          fill: true,
+
+          pointRadius: 4,
+
+          pointHoverRadius: 6,
+        },
+      ],
+    },
+
+    options: {
+      responsive: true,
+
+      maintainAspectRatio: false,
+
+      plugins: {
+        legend: {
+          display: false,
+        },
+
+        tooltip: {
+          callbacks: {
+            label: function (context) {
+              return ` ₹${context.parsed.y.toLocaleString("en-IN")}`;
+            },
+          },
+        },
+      },
+
+      scales: {
+        y: {
+          beginAtZero: true,
+
+          ticks: {
+            callback: function (value) {
+              return `₹${value}`;
+            },
+          },
+        },
+
+        x: {
+          grid: {
+            display: false,
+          },
+        },
+      },
+    },
+  });
+}
+
+// =========================
+// Spending Range
+// =========================
+
+document
+  .getElementById("spending-range")
+  .addEventListener("change", async (event) => {
+    const range = event.target.value;
+
+    const fromDate = getFromDate(range);
+
+    await loadUserExpenses(fromDate);
+  });
+
+// =========================
+// Authentication
+// =========================
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -48,33 +259,28 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  try {
-    const today = new Date();
-    const fromDate = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-        1
-    )
-      .toISOString()
-      .split("T")[0];
-
-    const response = await api.get(`/users/me/expenses?fromDate=${fromDate}`);
-
-    console.log("User expenses:", response.data);
-  } catch (error) {
-    console.error("Failed to fetch user expenses:", error);
-  }
+  // User information
 
   renderUser(user);
+
+  // Load spending
+
+  const range = document.getElementById("spending-range").value;
+
+  const fromDate = getFromDate(range);
+
+  await loadUserExpenses(fromDate);
+
+  // Load dashboard
 
   await loadDashboard();
 });
 
-/*
- * User information
- */
+// =========================
+// User Information
+// =========================
 
-async function renderUser(user) {
+function renderUser(user) {
   const name = user.displayName || "User";
 
   welcomeName.textContent = name;
@@ -88,24 +294,24 @@ async function renderUser(user) {
   }
 }
 
-/*
- * Dashboard data
- */
+// =========================
+// Dashboard Data
+// =========================
 
 async function loadDashboard() {
   await Promise.all([loadGroups()]);
 }
 
-/*
- * Groups
- */
+// =========================
+// Groups
+// =========================
 
 async function loadGroups() {
   groupsContainer.innerHTML = `
-        <div class="loading-state">
-            Loading groups...
-        </div>
-    `;
+    <div class="loading-state">
+      Loading groups...
+    </div>
+  `;
 
   try {
     const response = await api.get("/groups");
@@ -119,28 +325,36 @@ async function loadGroups() {
     console.error("Failed to load groups:", error);
 
     groupsContainer.innerHTML = `
-            <div class="error-state">
-                Unable to load your groups.
-                Please try again.
-            </div>
-        `;
+      <div class="error-state">
+        Unable to load your groups.
+        Please try again.
+      </div>
+    `;
   }
 }
+
+// =========================
+// Render Groups
+// =========================
 
 function renderGroups(groups) {
   if (groups.length === 0) {
     groupsContainer.innerHTML = `
-            <div class="empty-state">
-                <p>You haven't joined any groups yet.</p>
+      <div class="empty-state">
 
-                <button
-                    class="primary-btn"
-                    id="empty-create-group-btn"
-                >
-                    Create your first group
-                </button>
-            </div>
-        `;
+        <p>
+          You haven't joined any groups yet.
+        </p>
+
+        <button
+          class="primary-btn"
+          id="empty-create-group-btn"
+        >
+          Create your first group
+        </button>
+
+      </div>
+    `;
 
     document
       .getElementById("empty-create-group-btn")
@@ -176,12 +390,13 @@ function renderGroups(groups) {
   });
 }
 
-/*
- * Balances
- */
+// =========================
+// Balances
+// =========================
 
 async function loadBalances(groups) {
   let owePaise = 0;
+
   let owedPaise = 0;
 
   try {
@@ -221,9 +436,9 @@ async function loadBalances(groups) {
   }
 }
 
-/*
- * Create group modal
- */
+// =========================
+// Create Group Modal
+// =========================
 
 function openCreateGroupModal() {
   createGroupModal.classList.remove("hidden");
@@ -249,9 +464,9 @@ cancelGroupButton.addEventListener("click", closeCreateGroupModal);
 
 closeGroupButton.addEventListener("click", closeCreateGroupModal);
 
-/*
- * Create group
- */
+// =========================
+// Create Group
+// =========================
 
 createGroupForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -287,9 +502,9 @@ createGroupForm.addEventListener("submit", async (event) => {
   }
 });
 
-/*
- * Logout
- */
+// =========================
+// Logout
+// =========================
 
 logoutButton.addEventListener("click", async () => {
   try {
@@ -309,9 +524,9 @@ logoutButton.addEventListener("click", async () => {
   }
 });
 
-/*
- * Currency
- */
+// =========================
+// Currency
+// =========================
 
 function formatCurrency(paise) {
   return new Intl.NumberFormat("en-IN", {
