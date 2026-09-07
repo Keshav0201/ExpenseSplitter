@@ -16,73 +16,140 @@ const createExpense = async (expenseData) => {
     createdBy,
   } = expenseData;
 
-  // Get group
-  const groupDoc = await db.collection("groups").doc(groupId).get();
-
-  if (!groupDoc.exists) {
-    throw new Error("GROUP_NOT_FOUND");
-  }
-
-  const group = groupDoc.data();
-
-  // Check payer is a group member
-  if (!group.members?.[paidBy]) {
-    throw new Error("PAYER_NOT_MEMBER");
-  }
-
-  // Check all participants are group members
-  const participantIds = participants.map((participant) => {
-    if (typeof participant === "string") {
-      return participant;
-    }
-
-    return participant.userId;
-  });
-
-  for (const userId of participantIds) {
-    if (!group.members?.[userId]) {
-      throw new Error("PARTICIPANT_NOT_MEMBER");
-    }
-  }
-
-  // Calculate final split
-  const calculatedParticipants = calculateSplit(
-    amountPaise,
-    splitType,
-    participants
-  );
-
-  // Create expense
+  const groupRef = db.collection("groups").doc(groupId);
   const expenseRef = expensesCollection.doc();
 
-  const expense = {
-    groupId,
-    description,
-    amountPaise,
-    currency: "INR",
+  const result = await db.runTransaction(async (transaction) => {
+    // --------------------------------------------------------
+    // 1. Get group
+    // --------------------------------------------------------
 
-    paidBy,
+    const groupDoc = await transaction.get(groupRef);
 
-    splitType,
+    if (!groupDoc.exists) {
+      throw new Error("GROUP_NOT_FOUND");
+    }
 
-    participants: calculatedParticipants,
+    const group = groupDoc.data();
 
-    category,
+    // --------------------------------------------------------
+    // 2. Check payer
+    // --------------------------------------------------------
 
-    expenseDate,
+    if (!group.members?.[paidBy]) {
+      throw new Error("PAYER_NOT_MEMBER");
+    }
 
-    createdBy,
+    // --------------------------------------------------------
+    // 3. Check participants
+    // --------------------------------------------------------
 
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+    const participantIds = participants.map((participant) => {
+      if (typeof participant === "string") {
+        return participant;
+      }
 
-  await expenseRef.set(expense);
+      return participant.userId;
+    });
 
-  return {
-    id: expenseRef.id,
-    ...expense,
-  };
+    for (const userId of participantIds) {
+      if (!group.members?.[userId]) {
+        throw new Error("PARTICIPANT_NOT_MEMBER");
+      }
+    }
+
+    // --------------------------------------------------------
+    // 4. Calculate split
+    // --------------------------------------------------------
+
+    const calculatedParticipants = calculateSplit(
+      amountPaise,
+      splitType,
+      participants
+    );
+
+    // --------------------------------------------------------
+    // 5. Create expense
+    // --------------------------------------------------------
+
+    const expense = {
+      groupId,
+      description,
+      amountPaise,
+      currency: "INR",
+
+      paidBy,
+
+      splitType,
+
+      participants: calculatedParticipants,
+
+      category,
+
+      expenseDate,
+
+      createdBy,
+
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    transaction.set(expenseRef, expense);
+
+    // --------------------------------------------------------
+    // 6. Get existing balances
+    // --------------------------------------------------------
+
+    const balances = group.balances || {};
+
+    // Make sure every group member has a balance
+    for (const userId of Object.keys(group.members)) {
+      if (!balances[userId]) {
+        balances[userId] = {
+          paidPaise: 0,
+          owedPaise: 0,
+          balancePaise: 0,
+        };
+      }
+    }
+
+    // --------------------------------------------------------
+    // 7. Update payer's balance
+    // --------------------------------------------------------
+
+    balances[paidBy].paidPaise += amountPaise;
+
+    balances[paidBy].balancePaise += amountPaise;
+
+    // --------------------------------------------------------
+    // 8. Update participants' balances
+    // --------------------------------------------------------
+
+    for (const participant of calculatedParticipants) {
+      const userId = participant.userId;
+      const amount = participant.amountPaise;
+
+      balances[userId].owedPaise += amount;
+
+      balances[userId].balancePaise -= amount;
+    }
+
+    // --------------------------------------------------------
+    // 9. Update group
+    // --------------------------------------------------------
+
+    transaction.update(groupRef, {
+      balances,
+      updatedAt: new Date(),
+    });
+
+    return {
+      id: expenseRef.id,
+      ...expense,
+    };
+  });
+
+  return result;
 };
 
 const getGroupExpenses = async (groupId) => {

@@ -224,15 +224,10 @@ async function loadBalance() {
   myBalance.textContent = "Loading...";
 
   try {
-    const response = await api.get(`/groups/${groupId}/balances`);
-
-    const balances = response.data || [];
-
-    const balance = balances.find((item) => item.userId === currentUser.uid);
+    const balance = currentGroup.balances?.[currentUser.uid];
 
     if (!balance) {
       myBalance.textContent = "No balance information.";
-
       return;
     }
 
@@ -412,6 +407,7 @@ function renderSettlements(settlements) {
             }
           );
 
+          await loadGroup();
           await Promise.all([loadBalance(), loadSettlements()]);
         } catch (error) {
           console.error("Settlement failed:", error);
@@ -774,7 +770,11 @@ expenseForm.addEventListener("submit", async (event) => {
 
     closeExpenseModal();
 
-    await Promise.all([loadExpenses(), loadBalance(), loadSettlements()]);
+    await loadGroup();
+    await loadMembers();
+    await loadExpenses();
+    await loadSettlements();
+    await loadBalance();
   } catch (error) {
     console.error("Create expense failed:", error);
 
