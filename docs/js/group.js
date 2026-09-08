@@ -768,6 +768,8 @@ expenseForm.addEventListener("submit", async (event) => {
       expenseDate: date,
     });
 
+    clearExpenseCache();
+
     closeExpenseModal();
 
     await loadGroup();
@@ -785,6 +787,19 @@ expenseForm.addEventListener("submit", async (event) => {
     submitExpenseButton.textContent = "Add Expense";
   }
 });
+
+function clearExpenseCache() {
+
+    Object.keys(localStorage).forEach((key) => {
+
+        if (key.startsWith("userExpenses_")) {
+            localStorage.removeItem(key);
+        }
+
+    });
+
+    console.log("Expense cache cleared");
+}
 
 // ================================
 // Logout

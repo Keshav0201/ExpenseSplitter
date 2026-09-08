@@ -58,6 +58,8 @@ form.addEventListener("submit", async (event) => {
 
         successMessage.textContent = "Profile updated successfully.";
 
+        window.location.href = "./dashboard.html";
+
     } catch (error) {
         console.error("Failed to update profile:", error);
 

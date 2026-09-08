@@ -14,7 +14,7 @@ import { api } from "./api.js";
 const welcomeName = document.getElementById("welcome-name");
 
 const userName = document.getElementById("user-name");
-
+const upiIdText = document.getElementById("add-upi-request");
 const userPhoto = document.getElementById("user-photo");
 
 const totalOwe = document.getElementById("total-owe");
@@ -50,15 +50,88 @@ let spendingChart = null;
 let userExpenses = [];
 
 async function loadUserExpenses(fromDate) {
-  try {
-    const response = await api.get(`/users/me/expenses?fromDate=${fromDate}`);
 
-    userExpenses = response.data || [];
+    const cacheKey = `userExpenses_${fromDate}`;
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-    renderSpendingChart();
-  } catch (error) {
-    console.error("Failed to load user expenses:", error);
-  }
+    // Check localStorage
+    const cachedData = localStorage.getItem(cacheKey);
+
+    if (cachedData) {
+
+        try {
+
+            const cached = JSON.parse(cachedData);
+
+            const cacheAge = Date.now() - cached.cachedAt;
+
+            // Cache is still valid
+            if (cacheAge < CACHE_DURATION) {
+
+                console.log("Loaded expenses from localStorage");
+
+                userExpenses = cached.data;
+
+                renderSpendingChart();
+
+                return;
+            }
+
+            // Cache expired
+            localStorage.removeItem(cacheKey);
+
+        } catch (error) {
+
+            console.error("Invalid expense cache:", error);
+
+            localStorage.removeItem(cacheKey);
+        }
+    }
+
+
+    // Cache unavailable/expired → fetch from backend
+    console.log("Loading expenses from database...");
+
+    try {
+
+        const response = await api.get(
+            `/users/me/expenses?fromDate=${fromDate}`
+        );
+
+        userExpenses = response.data || [];
+
+        // Save to localStorage
+        localStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+                data: userExpenses,
+                cachedAt: Date.now()
+            })
+        );
+
+        renderSpendingChart();
+
+    } catch (error) {
+
+        console.error("Failed to load user expenses:", error);
+
+        userExpenses = [];
+
+        renderSpendingChart();
+    }
+}
+
+function clearExpenseCache() {
+
+    Object.keys(localStorage).forEach((key) => {
+
+        if (key.startsWith("userExpenses_")) {
+            localStorage.removeItem(key);
+        }
+
+    });
+
+    console.log("Expense cache cleared");
 }
 
 // =========================
@@ -255,24 +328,18 @@ document
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = "./login.html";
-
     return;
   }
 
   // User information
-
   renderUser(user);
 
   // Load spending
-
   const range = document.getElementById("spending-range").value;
-
   const fromDate = getFromDate(range);
-
   await loadUserExpenses(fromDate);
 
   // Load dashboard
-
   await loadDashboard();
 });
 
@@ -280,12 +347,16 @@ onAuthStateChanged(auth, async (user) => {
 // User Information
 // =========================
 
-function renderUser(user) {
-  const name = user.displayName || "User";
-
+async function renderUser(user) {
+  const response = await api.get("/users/me");
+  const name = response.data.name || "User";
   welcomeName.textContent = name;
-
   userName.textContent = name;
+  if(!response.data.upiId) {
+    upiIdText.textContent = "Add your UPI ID to receive payments";
+  }else{
+    upiIdText.style.display = "none";
+  }
 
   if (user.photoURL) {
     userPhoto.src = user.photoURL;
