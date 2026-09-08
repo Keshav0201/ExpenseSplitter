@@ -104,12 +104,12 @@ async function loadGroupPage() {
       await loadExpenses();
 
       // Hide personal-group sections
-      document.querySelector(".members-section")?.classList.add("hidden");
       document.querySelector(".group-balance-section")?.classList.add("hidden");
       document.querySelector(".settlements-section")?.classList.add("hidden");
 
       // Hide Add Member button
       addMemberButton?.classList.add("hidden");
+      await loadMembers();
 
       return;
     }
