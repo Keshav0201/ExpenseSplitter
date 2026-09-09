@@ -49,9 +49,6 @@ router.get(
   getSettlement
 );
 
-
-
-
 // Complete settlement
 router.patch(
   "/:groupId/settlements/:settlementId/complete",

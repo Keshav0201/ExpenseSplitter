@@ -11,6 +11,12 @@ import { api } from "./api.js";
 // Get group ID from URL
 // ================================
 
+const bar = document.getElementById("bar");
+bar.style.width = "0%";
+const loadingBar = document.getElementById("progress-bar-container");
+function setProgress(percent) {
+  bar.style.width = `${percent}%`;
+}
 const params = new URLSearchParams(window.location.search);
 
 const groupId = params.get("id");
@@ -94,34 +100,56 @@ onAuthStateChanged(auth, async (user) => {
 // ================================
 
 async function loadGroupPage() {
+  loadingBar.style.display = "flex";
+  setProgress(10);
+
   try {
     await loadGroup();
+    setProgress(30);
+
+    await loadMembers();
+    setProgress(50);
 
     if (currentGroup.type === "personal") {
       groupDescription.textContent = "Your personal expenses";
 
-      // Only load expenses for personal group
-      await loadExpenses();
+      document
+        .querySelector(".group-balance-section")
+        ?.classList.add("hidden");
 
-      // Hide personal-group sections
-      document.querySelector(".group-balance-section")?.classList.add("hidden");
-      document.querySelector(".settlements-section")?.classList.add("hidden");
+      document
+        .querySelector(".settlements-section")
+        ?.classList.add("hidden");
 
-      // Hide Add Member button
       addMemberButton?.classList.add("hidden");
-      await loadMembers();
 
-      return;
+      await loadExpenses();
+      setProgress(90);
+    } else {
+      groupDescription.textContent =
+        "Group expenses and settlements";
+
+      await Promise.all([
+        loadExpenses(),
+        loadBalance(),
+        loadSettlements(),
+      ]);
+
+      setProgress(90);
     }
 
-    // Normal group
-    groupDescription.textContent = "Group expenses and settlements";
+    // Everything is loaded
+    setProgress(100);
 
-    await loadMembers();
+    // Give the browser time to render 100%
+    setTimeout(() => {
+      loadingBar.style.display = "none";
+    }, 300);
 
-    await Promise.all([loadExpenses(), loadBalance(), loadSettlements()]);
   } catch (error) {
     console.error("Failed to load group:", error);
+
+    loadingBar.style.display = "none";
   }
 }
 
@@ -424,6 +452,7 @@ function renderSettlements(settlements) {
   });
 }
 
+
 // ================================
 // Add Member
 // ================================
@@ -656,6 +685,55 @@ function updateParticipantInputs() {
   });
 }
 
+function showExpenseLoading() {
+  let loader = document.getElementById("expense-loading");
+
+  if (!loader) {
+    loader = document.createElement("div");
+
+    loader.id = "expense-loading";
+
+    loader.innerHTML = `
+      <div class="expense-loading-content">
+        <div class="expense-loading-bar-container">
+          <div id="expense-loading-bar"></div>
+        </div>
+
+        <div id="expense-loading-text">
+          Adding expense... 0%
+        </div>
+      </div>
+    `;
+
+    expenseModal.appendChild(loader);
+  }
+
+  loader.style.display = "flex";
+
+  setExpenseProgress(0, "Adding expense...");
+}
+
+function setExpenseProgress(percent, text) {
+  const bar = document.getElementById("expense-loading-bar");
+  const textElement = document.getElementById("expense-loading-text");
+
+  if (bar) {
+    bar.style.width = `${percent}%`;
+  }
+
+  if (textElement) {
+    textElement.textContent = `${text} ${percent}%`;
+  }
+}
+
+function hideExpenseLoading() {
+  const loader = document.getElementById("expense-loading");
+
+  if (loader) {
+    loader.style.display = "none";
+  }
+}
+
 // ================================
 // Create Expense
 // ================================
@@ -667,19 +745,13 @@ expenseForm.addEventListener("submit", async (event) => {
 
   try {
     submitExpenseButton.disabled = true;
-
     submitExpenseButton.textContent = "Adding...";
 
     const description = expenseDescription.value.trim();
-
     const amount = Number(expenseAmount.value);
-
     const paidBy = expensePaidBy.value;
-
     const splitType = expenseSplitType.value;
-
     const category = expenseCategory.value;
-
     const date = expenseDate.value;
 
     if (!description) {
@@ -707,13 +779,13 @@ expenseForm.addEventListener("submit", async (event) => {
     let participants;
 
     if (splitType === "equal") {
-      participants = selectedParticipants.map((checkbox) => checkbox.value);
+      participants = selectedParticipants.map(
+        (checkbox) => checkbox.value
+      );
     } else {
       participants = selectedParticipants.map((checkbox) => {
         const row = checkbox.closest(".participant-row");
-
         const input = row.querySelector(".participant-value");
-
         const value = Number(input.value);
 
         if (!value || value < 0) {
@@ -723,14 +795,12 @@ expenseForm.addEventListener("submit", async (event) => {
         if (splitType === "exact") {
           return {
             userId: checkbox.value,
-
             amountPaise: rupeesToPaise(value),
           };
         }
 
         return {
           userId: checkbox.value,
-
           percentage: value,
         };
       });
@@ -738,25 +808,43 @@ expenseForm.addEventListener("submit", async (event) => {
 
     if (splitType === "exact") {
       const total = participants.reduce(
-        (sum, participant) => sum + participant.amountPaise,
+        (sum, participant) =>
+          sum + participant.amountPaise,
         0
       );
 
       if (total !== amountPaise) {
-        throw new Error("Exact split amounts must equal the total.");
+        throw new Error(
+          "Exact split amounts must equal the total."
+        );
       }
     }
 
     if (splitType === "percentage") {
       const total = participants.reduce(
-        (sum, participant) => sum + participant.percentage,
+        (sum, participant) =>
+          sum + participant.percentage,
         0
       );
 
       if (total !== 100) {
-        throw new Error("Percentages must add up to 100%.");
+        throw new Error(
+          "Percentages must add up to 100%."
+        );
       }
     }
+
+    // --------------------------------
+    // Show loading
+    // --------------------------------
+
+    showExpenseLoading();
+
+    setExpenseProgress(20, "Saving expense...");
+
+    // --------------------------------
+    // Create expense
+    // --------------------------------
 
     await api.post(`/groups/${groupId}/expenses`, {
       description,
@@ -768,22 +856,53 @@ expenseForm.addEventListener("submit", async (event) => {
       expenseDate: date,
     });
 
+    setExpenseProgress(40, "Updating group...");
+
     clearExpenseCache();
 
-    closeExpenseModal();
+    // --------------------------------
+    // Refresh group
+    // --------------------------------
 
     await loadGroup();
+
+    setExpenseProgress(55, "Updating members...");
+
     await loadMembers();
+
+    setExpenseProgress(70, "Updating expenses...");
+
     await loadExpenses();
+
+    setExpenseProgress(82, "Updating settlements...");
+
     await loadSettlements();
+
+    setExpenseProgress(95, "Updating balance...");
+
     await loadBalance();
+
+    // --------------------------------
+    // Everything finished
+    // --------------------------------
+
+    setExpenseProgress(100, "Expense added!");
+
+    setTimeout(() => {
+      hideExpenseLoading();
+      closeExpenseModal();
+    }, 400);
+
   } catch (error) {
     console.error("Create expense failed:", error);
 
-    expenseError.textContent = error.message || "Unable to create expense.";
+    hideExpenseLoading();
+
+    expenseError.textContent =
+      error.message || "Unable to create expense.";
+
   } finally {
     submitExpenseButton.disabled = false;
-
     submitExpenseButton.textContent = "Add Expense";
   }
 });

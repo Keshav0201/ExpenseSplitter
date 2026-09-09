@@ -218,44 +218,99 @@ const getSettlementById = async (settlementId) => {
 // 5. COMPLETE SETTLEMENT
 // ============================================================
 
-const completeSettlement = async (settlementId, userId) => {
+const completeSettlement = async (groupId, settlementId, userId) => {
   const settlementRef = settlementsCollection.doc(settlementId);
 
-  const settlementDoc = await settlementRef.get();
+  const groupRef = db.collection("groups").doc(groupId);
 
-  // --------------------------------------------------------
-  // Check settlement
-  // --------------------------------------------------------
+  await db.runTransaction(async (transaction) => {
+    // Get both documents
+    const settlementDoc = await transaction.get(settlementRef);
 
-  if (!settlementDoc.exists) {
-    throw new Error("SETTLEMENT_NOT_FOUND");
-  }
+    if (!settlementDoc.exists) {
+      throw new Error("SETTLEMENT_NOT_FOUND");
+    }
 
-  const settlement = settlementDoc.data();
+    const settlement = settlementDoc.data();
 
-  // --------------------------------------------------------
-  // Only payer can complete it
-  // --------------------------------------------------------
+    // Make sure settlement belongs to this group
+    if (settlement.groupId !== groupId) {
+      throw new Error("SETTLEMENT_NOT_FOUND");
+    }
 
-  if (settlement.from !== userId) {
-    throw new Error("NOT_SETTLEMENT_PAYER");
-  }
+    // Only payer can complete settlement
+    if (settlement.from !== userId) {
+      throw new Error("NOT_SETTLEMENT_PAYER");
+    }
 
-  // --------------------------------------------------------
-  // Prevent duplicate completion
-  // --------------------------------------------------------
+    // Prevent duplicate completion
+    if (settlement.status === "completed") {
+      throw new Error("SETTLEMENT_ALREADY_COMPLETED");
+    }
 
-  if (settlement.status === "completed") {
-    throw new Error("SETTLEMENT_ALREADY_COMPLETED");
-  }
+    // Get group
+    const groupDoc = await transaction.get(groupRef);
 
-  // --------------------------------------------------------
-  // Complete settlement
-  // --------------------------------------------------------
+    if (!groupDoc.exists) {
+      throw new Error("GROUP_NOT_FOUND");
+    }
 
-  await settlementRef.update({
-    status: "completed",
-    completedAt: new Date(),
+    const group = groupDoc.data();
+
+    const balances = group.balances || {};
+
+    const from = settlement.from;
+    const to = settlement.to;
+    const amount = settlement.amountPaise;
+
+    // Make sure balances exist
+    if (!balances[from]) {
+      balances[from] = {
+        paidPaise: 0,
+        owedPaise: 0,
+        balancePaise: 0,
+      };
+    }
+
+    if (!balances[to]) {
+      balances[to] = {
+        paidPaise: 0,
+        owedPaise: 0,
+        balancePaise: 0,
+      };
+    }
+
+    // ----------------------------------------------------
+    // Update payer
+    // ----------------------------------------------------
+
+    balances[to].paidPaise -= amount;
+    balances[to].balancePaise -= amount;
+
+    // ----------------------------------------------------
+    // Update receiver
+    // ----------------------------------------------------
+
+    balances[from].owedPaise -= amount;
+    balances[from].balancePaise += amount;
+
+    // ----------------------------------------------------
+    // Update group
+    // ----------------------------------------------------
+
+    transaction.update(groupRef, {
+      balances,
+      updatedAt: new Date(),
+    });
+
+    // ----------------------------------------------------
+    // Mark settlement completed
+    // ----------------------------------------------------
+
+    transaction.update(settlementRef, {
+      status: "completed",
+      completedAt: new Date(),
+    });
   });
 
   return getSettlementById(settlementId);
@@ -267,12 +322,8 @@ const completeSettlement = async (settlementId, userId) => {
 
 module.exports = {
   calculateSettlements,
-
   createSettlement,
-
   getGroupSettlements,
-
   getSettlementById,
-
   completeSettlement,
 };

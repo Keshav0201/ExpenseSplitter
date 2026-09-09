@@ -139,3 +139,82 @@ main {
     font-size: 13px;
     color: #9ca3af;
 }
+
+.progress-bar-container{
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: rgba(0, 0, 0);
+    opacity: 0.8;
+    position: fixed;
+    z-index: 9999;
+}
+
+.progress-container {
+  position: relative;
+  width: 300px;
+  height: 25px;
+  background: #ddd;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  width: 70%;
+  height: 100%;
+  background: rgb(66, 103, 239);
+  transition: width 0.3s;
+}
+
+#progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: bold;
+}
+
+#expense-loading {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.95);
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 100;
+}
+
+.expense-loading-content {
+  width: 80%;
+  max-width: 350px;
+  text-align: center;
+}
+
+.expense-loading-bar-container {
+  width: 100%;
+  height: 12px;
+  background: #ddd;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+#expense-loading-bar {
+  width: 0%;
+  height: 100%;
+  background: #4caf50;
+  transition: width 0.3s ease;
+}
+
+#expense-loading-text {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#expense-modal {
+  position: relative;
+}

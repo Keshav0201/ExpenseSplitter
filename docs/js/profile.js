@@ -2,6 +2,9 @@ import { auth } from "./firebase.js";
 import { api } from "./api.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
+const bar = document.getElementById("bar");
+bar.style.width = "0%";
+const loadingBar = document.getElementById("progress-bar-container");
 const nameInput = document.getElementById("profile-name");
 const emailInput = document.getElementById("profile-email");
 const upiInput = document.getElementById("profile-upi");
@@ -31,9 +34,10 @@ async function loadProfile() {
     }
 }
 
-
+bar.style.width = "20%";
 // Update profile
 form.addEventListener("submit", async (event) => {
+    loadingBar.style.display = "flex";
     event.preventDefault();
 
     errorMessage.textContent = "";
@@ -44,10 +48,13 @@ form.addEventListener("submit", async (event) => {
 
     if (!name) {
         errorMessage.textContent = "Name cannot be empty.";
+        loadingBar.style.display = "none";
+        bar.style.width = "0%";
         return;
     }
 
     try {
+        bar.style.width = "40%";
         saveButton.disabled = true;
         saveButton.textContent = "Saving...";
 
@@ -70,6 +77,7 @@ form.addEventListener("submit", async (event) => {
         saveButton.disabled = false;
         saveButton.textContent = "Save Changes";
     }
+    loadingBar.style.display = "none";
 });
 
 
@@ -80,6 +88,7 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
     window.location.href = "./login.html";
 });
 
+bar.style.width = "60%";
 
 // Authentication
 onAuthStateChanged(auth, async (user) => {
@@ -91,3 +100,7 @@ onAuthStateChanged(auth, async (user) => {
 
     await loadProfile();
 });
+
+bar.style.width = "100%";
+
+loadingBar.style.display = "none";

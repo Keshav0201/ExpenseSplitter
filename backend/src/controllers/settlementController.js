@@ -244,6 +244,7 @@ const completeExistingSettlement = async (
   try {
 
     const settlement = await completeSettlement(
+      req.params.groupId,
       req.params.settlementId,
       req.user.uid
     );

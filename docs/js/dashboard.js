@@ -10,7 +10,14 @@ import { api } from "./api.js";
 // =========================
 // DOM Elements
 // =========================
+const bar = document.getElementById("bar");
+bar.style.width = "0%";
 
+const loadingBar = document.getElementById("progress-bar-container");
+
+function setProgress(percent) {
+  bar.style.width = `${percent}%`;
+}
 const welcomeName = document.getElementById("welcome-name");
 
 const userName = document.getElementById("user-name");
@@ -331,16 +338,36 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  // User information
-  renderUser(user);
+  loadingBar.style.display = "flex";
+  setProgress(10);
 
-  // Load spending
-  const range = document.getElementById("spending-range").value;
-  const fromDate = getFromDate(range);
-  await loadUserExpenses(fromDate);
+  try {
+    // User information
+    await renderUser(user);
+    setProgress(30);
 
-  // Load dashboard
-  await loadDashboard();
+    // Load spending
+    const range = document.getElementById("spending-range").value;
+    const fromDate = getFromDate(range);
+
+    await loadUserExpenses(fromDate);
+    setProgress(55);
+
+    // Load dashboard
+    await loadDashboard();
+    setProgress(90);
+
+    // Everything is loaded
+    setProgress(100);
+
+    setTimeout(() => {
+      loadingBar.style.display = "none";
+    }, 300);
+
+  } catch (error) {
+    console.error("Failed to load dashboard:", error);
+    loadingBar.style.display = "none";
+  }
 });
 
 // =========================
@@ -376,6 +403,7 @@ async function loadDashboard() {
 // =========================
 // Groups
 // =========================
+
 
 async function loadGroups() {
   groupsContainer.innerHTML = `
@@ -461,6 +489,7 @@ function renderGroups(groups) {
   });
 }
 
+
 // =========================
 // Balances
 // =========================
@@ -528,7 +557,6 @@ function closeCreateGroupModal() {
 
   groupError.textContent = "";
 }
-
 createGroupButton.addEventListener("click", openCreateGroupModal);
 
 cancelGroupButton.addEventListener("click", closeCreateGroupModal);
@@ -606,3 +634,5 @@ function formatCurrency(paise) {
     minimumFractionDigits: 2,
   }).format(paise / 100);
 }
+
+loadingBar.style.display = "none";
