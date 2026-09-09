@@ -1,7 +1,7 @@
 import { auth } from "./firebase.js";
 
-//const API_BASE_URL = "https://expensesplitter-vy1j.onrender.com/api";
-const API_BASE_URL = "http://localhost:3016/api";
+const API_BASE_URL = "https://expensesplitter-vy1j.onrender.com/api";
+//const API_BASE_URL = "http://localhost:3016/api";
 
 async function getAuthToken() {
   const user = auth.currentUser;
