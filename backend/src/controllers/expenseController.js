@@ -3,6 +3,7 @@ const {
   getGroupExpenses,
   getExpenseById,
   getUserExpensesFromDate,
+  deleteExpense
 } = require("../services/expenseService");
 
 const createNewExpense = async (req, res) => {
@@ -202,9 +203,67 @@ const getMyExpenses = async (req, res) => {
   }
 };
 
+const deleteExistingExpense = async (req, res) => {
+
+    try {
+
+        const expense = await deleteExpense(
+            req.params.groupId,
+            req.params.expenseId,
+            req.user.uid
+        );
+
+        res.status(200).json({
+            success: true,
+            data: expense
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Delete expense error:",
+            error
+        );
+
+        if (
+            error.message === "EXPENSE_NOT_FOUND"
+        ) {
+            return res.status(404).json({
+                success: false,
+                message: "Expense not found"
+            });
+        }
+
+        if (
+            error.message === "NOT_EXPENSE_CREATOR"
+        ) {
+            return res.status(403).json({
+                success: false,
+                message:
+                    "Only the expense creator can delete it"
+            });
+        }
+
+        if (
+            error.message === "GROUP_NOT_FOUND"
+        ) {
+            return res.status(404).json({
+                success: false,
+                message: "Group not found"
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to delete expense"
+        });
+    }
+};
+
 module.exports = {
   createNewExpense,
   getExpenses,
   getExpense,
   getMyExpenses,
+  deleteExistingExpense
 };

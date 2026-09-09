@@ -6,7 +6,9 @@ const { requireGroupMember } = require("../middleware/groupMiddleware");
 const {
   createNewExpense,
   getExpenses,
-  getExpense
+  getExpense,
+  deleteExistingExpense,
+  getMyExpenses
 } = require("../controllers/expenseController");
 
 const router = express.Router();
@@ -32,6 +34,12 @@ router.get(
   getExpense
 );
 
+router.delete(
+    "/:groupId/expenses/:expenseId",
+    authenticateUser,
+    requireGroupMember,
+    deleteExistingExpense
+);
 
 
 module.exports = router;

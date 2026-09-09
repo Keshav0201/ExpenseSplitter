@@ -210,9 +210,130 @@ const getUserExpensesFromDate = async (uid, fromDate) => {
   return expenses;
 };
 
+const deleteExpense = async (groupId, expenseId, userId) => {
+
+    const expenseRef =
+        expensesCollection.doc(expenseId);
+
+    const groupRef =
+        db.collection("groups").doc(groupId);
+
+    await db.runTransaction(async (transaction) => {
+
+        // ----------------------------------------------------
+        // Get expense
+        // ----------------------------------------------------
+
+        const expenseDoc =
+            await transaction.get(expenseRef);
+
+        if (!expenseDoc.exists) {
+            throw new Error("EXPENSE_NOT_FOUND");
+        }
+
+        const expense = expenseDoc.data();
+
+        // ----------------------------------------------------
+        // Make sure expense belongs to this group
+        // ----------------------------------------------------
+
+        if (expense.groupId !== groupId) {
+            throw new Error("EXPENSE_NOT_FOUND");
+        }
+
+        // ----------------------------------------------------
+        // Only creator can delete
+        // ----------------------------------------------------
+
+        if (expense.createdBy !== userId) {
+            throw new Error("NOT_EXPENSE_CREATOR");
+        }
+
+        // ----------------------------------------------------
+        // Get group
+        // ----------------------------------------------------
+
+        const groupDoc =
+            await transaction.get(groupRef);
+
+        if (!groupDoc.exists) {
+            throw new Error("GROUP_NOT_FOUND");
+        }
+
+        const group = groupDoc.data();
+
+        const balances = group.balances || {};
+
+        const paidBy = expense.paidBy;
+        const amount = expense.amountPaise;
+
+        // ----------------------------------------------------
+        // Make sure payer balance exists
+        // ----------------------------------------------------
+
+        if (!balances[paidBy]) {
+            balances[paidBy] = {
+                paidPaise: 0,
+                owedPaise: 0,
+                balancePaise: 0
+            };
+        }
+
+        // ----------------------------------------------------
+        // Reverse payer's balance
+        // ----------------------------------------------------
+
+        balances[paidBy].paidPaise -= amount;
+        balances[paidBy].balancePaise -= amount;
+
+        // ----------------------------------------------------
+        // Reverse participant balances
+        // ----------------------------------------------------
+
+        for (const participant of expense.participants) {
+
+            const userId = participant.userId;
+            const participantAmount =
+                participant.amountPaise;
+
+            if (!balances[userId]) {
+                balances[userId] = {
+                    paidPaise: 0,
+                    owedPaise: 0,
+                    balancePaise: 0
+                };
+            }
+
+            balances[userId].owedPaise -= participantAmount;
+            balances[userId].balancePaise += participantAmount;
+        }
+
+        // ----------------------------------------------------
+        // Update group balances
+        // ----------------------------------------------------
+
+        transaction.update(groupRef, {
+            balances,
+            updatedAt: new Date()
+        });
+
+        // ----------------------------------------------------
+        // Delete expense
+        // ----------------------------------------------------
+
+        transaction.delete(expenseRef);
+    });
+
+    return {
+        id: expenseId,
+        deleted: true
+    };
+};
+
 module.exports = {
   createExpense,
   getGroupExpenses,
   getExpenseById,
+  deleteExpense,
   getUserExpensesFromDate,
 };

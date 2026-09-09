@@ -107,14 +107,16 @@ async function loadGroupPage() {
     await loadGroup();
     setProgress(30);
 
-    await loadMembers();
-    setProgress(50);
-
     if (currentGroup.type === "personal") {
+
       groupDescription.textContent = "Your personal expenses";
 
       document
         .querySelector(".group-balance-section")
+        ?.classList.add("hidden");
+
+      document
+        .querySelector(".members-section")
         ?.classList.add("hidden");
 
       document
@@ -123,36 +125,43 @@ async function loadGroupPage() {
 
       addMemberButton?.classList.add("hidden");
 
+      setProgress(50);
+
       await loadExpenses();
+
       setProgress(90);
+
     } else {
+
       groupDescription.textContent =
         "Group expenses and settlements";
+
+      await loadMembers();
+
+      setProgress(50);
 
       await Promise.all([
         loadExpenses(),
         loadBalance(),
-        loadSettlements(),
+        loadSettlements()
       ]);
 
       setProgress(90);
     }
 
-    // Everything is loaded
     setProgress(100);
 
-    // Give the browser time to render 100%
     setTimeout(() => {
       loadingBar.style.display = "none";
     }, 300);
 
   } catch (error) {
+
     console.error("Failed to load group:", error);
 
     loadingBar.style.display = "none";
   }
 }
-
 // ================================
 // Group
 // ================================
@@ -294,10 +303,10 @@ async function loadExpenses() {
 function renderExpenses(expenses) {
   if (expenses.length === 0) {
     expensesContainer.innerHTML = `
-            <div class="empty-state">
-                No expenses yet.
-            </div>
-        `;
+      <div class="empty-state">
+        No expenses yet.
+      </div>
+    `;
 
     return;
   }
@@ -309,6 +318,7 @@ function renderExpenses(expenses) {
 
     card.className = "expense-card";
 
+    // Expense information
     const info = document.createElement("div");
 
     info.className = "expense-info";
@@ -324,18 +334,57 @@ function renderExpenses(expenses) {
     }`;
 
     info.appendChild(title);
-
     info.appendChild(details);
 
+    // Amount
     const amount = document.createElement("span");
 
     amount.className = "expense-amount";
 
     amount.textContent = formatCurrency(expense.amountPaise);
 
-    card.appendChild(info);
+    // Delete button
+    const deleteButton = document.createElement("button");
 
+    deleteButton.className = "delete-expense-btn";
+
+    deleteButton.textContent = "Delete";
+
+    deleteButton.addEventListener("click", async () => {
+      const confirmed = confirm(`Delete "${expense.description}"?`);
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        deleteButton.disabled = true;
+
+        deleteButton.textContent = "Deleting...";
+
+        await api.delete(`/groups/${groupId}/expenses/${expense.id}`);
+
+        // Remove cached dashboard expense data
+        clearExpenseCache();
+
+        window.location.reload();
+
+        // Reload expense list and balances
+        await Promise.all([loadExpenses(), loadBalance(), loadSettlements()]);
+      } catch (error) {
+        console.error("Delete expense failed:", error);
+
+        showToast(error.message || "Failed to delete expense.");
+
+        deleteButton.disabled = false;
+
+        deleteButton.textContent = "Delete";
+      }
+    });
+
+    card.appendChild(info);
     card.appendChild(amount);
+    card.appendChild(deleteButton);
 
     expensesContainer.appendChild(card);
   });
@@ -451,7 +500,6 @@ function renderSettlements(settlements) {
     settlementsContainer.appendChild(card);
   });
 }
-
 
 // ================================
 // Add Member
@@ -779,9 +827,7 @@ expenseForm.addEventListener("submit", async (event) => {
     let participants;
 
     if (splitType === "equal") {
-      participants = selectedParticipants.map(
-        (checkbox) => checkbox.value
-      );
+      participants = selectedParticipants.map((checkbox) => checkbox.value);
     } else {
       participants = selectedParticipants.map((checkbox) => {
         const row = checkbox.closest(".participant-row");
@@ -808,29 +854,23 @@ expenseForm.addEventListener("submit", async (event) => {
 
     if (splitType === "exact") {
       const total = participants.reduce(
-        (sum, participant) =>
-          sum + participant.amountPaise,
+        (sum, participant) => sum + participant.amountPaise,
         0
       );
 
       if (total !== amountPaise) {
-        throw new Error(
-          "Exact split amounts must equal the total."
-        );
+        throw new Error("Exact split amounts must equal the total.");
       }
     }
 
     if (splitType === "percentage") {
       const total = participants.reduce(
-        (sum, participant) =>
-          sum + participant.percentage,
+        (sum, participant) => sum + participant.percentage,
         0
       );
 
       if (total !== 100) {
-        throw new Error(
-          "Percentages must add up to 100%."
-        );
+        throw new Error("Percentages must add up to 100%.");
       }
     }
 
@@ -892,15 +932,12 @@ expenseForm.addEventListener("submit", async (event) => {
       hideExpenseLoading();
       closeExpenseModal();
     }, 400);
-
   } catch (error) {
     console.error("Create expense failed:", error);
 
     hideExpenseLoading();
 
-    expenseError.textContent =
-      error.message || "Unable to create expense.";
-
+    expenseError.textContent = error.message || "Unable to create expense.";
   } finally {
     submitExpenseButton.disabled = false;
     submitExpenseButton.textContent = "Add Expense";
@@ -908,16 +945,13 @@ expenseForm.addEventListener("submit", async (event) => {
 });
 
 function clearExpenseCache() {
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith("userExpenses_")) {
+      localStorage.removeItem(key);
+    }
+  });
 
-    Object.keys(localStorage).forEach((key) => {
-
-        if (key.startsWith("userExpenses_")) {
-            localStorage.removeItem(key);
-        }
-
-    });
-
-    console.log("Expense cache cleared");
+  console.log("Expense cache cleared");
 }
 
 // ================================
