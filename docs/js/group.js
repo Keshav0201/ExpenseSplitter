@@ -64,7 +64,25 @@ const expenseError = document.getElementById("expense-error");
 const submitExpenseButton = document.getElementById("submit-expense-btn");
 const cancelExpenseButton = document.getElementById("cancel-expense-btn");
 const closeExpenseButton = document.getElementById("close-expense-btn");
+const viewExpenseModal = document.getElementById("view-expense-modal");
+const closeViewExpenseButton = document.getElementById(
+  "close-view-expense-btn"
+);
 
+const viewExpenseDescription = document.getElementById(
+  "view-expense-description"
+);
+const viewExpenseAmount = document.getElementById("view-expense-amount");
+const viewExpensePaidBy = document.getElementById("view-expense-paid-by");
+const viewExpenseCategory = document.getElementById("view-expense-category");
+const viewExpenseDate = document.getElementById("view-expense-date");
+const viewExpenseSplitType = document.getElementById("view-expense-split-type");
+const viewExpenseParticipants = document.getElementById(
+  "view-expense-participants"
+);
+const deleteViewExpenseButton = document.getElementById(
+  "delete-view-expense-btn"
+);
 // ================================
 // State
 // ================================
@@ -72,6 +90,7 @@ const closeExpenseButton = document.getElementById("close-expense-btn");
 let currentUser = null;
 let currentGroup = null;
 let members = [];
+let selectedExpenseId = null;
 
 // ================================
 // Authentication
@@ -108,20 +127,13 @@ async function loadGroupPage() {
     setProgress(30);
 
     if (currentGroup.type === "personal") {
-
       groupDescription.textContent = "Your personal expenses";
 
-      document
-        .querySelector(".group-balance-section")
-        ?.classList.add("hidden");
+      document.querySelector(".group-balance-section")?.classList.add("hidden");
 
-      document
-        .querySelector(".members-section")
-        ?.classList.add("hidden");
+      document.querySelector(".members-section")?.classList.add("hidden");
 
-      document
-        .querySelector(".settlements-section")
-        ?.classList.add("hidden");
+      document.querySelector(".settlements-section")?.classList.add("hidden");
 
       addMemberButton?.classList.add("hidden");
 
@@ -130,21 +142,14 @@ async function loadGroupPage() {
       await loadExpenses();
 
       setProgress(90);
-
     } else {
-
-      groupDescription.textContent =
-        "Group expenses and settlements";
+      groupDescription.textContent = "Group expenses and settlements";
 
       await loadMembers();
 
       setProgress(50);
 
-      await Promise.all([
-        loadExpenses(),
-        loadBalance(),
-        loadSettlements()
-      ]);
+      await Promise.all([loadExpenses(), loadBalance(), loadSettlements()]);
 
       setProgress(90);
     }
@@ -154,9 +159,7 @@ async function loadGroupPage() {
     setTimeout(() => {
       loadingBar.style.display = "none";
     }, 300);
-
   } catch (error) {
-
     console.error("Failed to load group:", error);
 
     loadingBar.style.display = "none";
@@ -315,6 +318,14 @@ function renderExpenses(expenses) {
 
   expenses.forEach((expense) => {
     const card = document.createElement("div");
+    card.addEventListener("click", (event) => {
+      // Don't open the details dialog when Delete is clicked
+      if (event.target.closest(".delete-expense-btn")) {
+        return;
+      }
+
+      openExpenseDetails(expense.id);
+    });
 
     card.className = "expense-card";
 
@@ -343,52 +354,20 @@ function renderExpenses(expenses) {
 
     amount.textContent = formatCurrency(expense.amountPaise);
 
-    // Delete button
-    const deleteButton = document.createElement("button");
-
-    deleteButton.className = "delete-expense-btn";
-
-    deleteButton.textContent = "Delete";
-
-    deleteButton.addEventListener("click", async () => {
-      const confirmed = confirm(`Delete "${expense.description}"?`);
-
-      if (!confirmed) {
-        return;
-      }
-
-      try {
-        deleteButton.disabled = true;
-
-        deleteButton.textContent = "Deleting...";
-
-        await api.delete(`/groups/${groupId}/expenses/${expense.id}`);
-
-        // Remove cached dashboard expense data
-        clearExpenseCache();
-
-        window.location.reload();
-
-        // Reload expense list and balances
-        await Promise.all([loadExpenses(), loadBalance(), loadSettlements()]);
-      } catch (error) {
-        console.error("Delete expense failed:", error);
-
-        showToast(error.message || "Failed to delete expense.");
-
-        deleteButton.disabled = false;
-
-        deleteButton.textContent = "Delete";
-      }
-    });
-
     card.appendChild(info);
     card.appendChild(amount);
-    card.appendChild(deleteButton);
 
     expensesContainer.appendChild(card);
   });
 }
+
+closeViewExpenseButton.addEventListener("click", closeExpenseDetails);
+
+viewExpenseModal.addEventListener("click", (event) => {
+  if (event.target === viewExpenseModal) {
+    closeExpenseDetails();
+  }
+});
 
 // ================================
 // Settlements
@@ -780,6 +759,107 @@ function hideExpenseLoading() {
   if (loader) {
     loader.style.display = "none";
   }
+}
+
+deleteViewExpenseButton.addEventListener("click", async () => {
+
+    if (!selectedExpenseId) return;
+
+    const confirmed = confirm(
+        "Are you sure you want to delete this expense?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+        deleteViewExpenseButton.disabled = true;
+        deleteViewExpenseButton.textContent = "Deleting...";
+
+        await api.delete(
+            `/groups/${groupId}/expenses/${selectedExpenseId}`
+        );
+
+        clearExpenseCache();
+
+        window.location.reload();
+
+    } catch (error) {
+        console.error("Failed to delete expense:", error);
+
+        deleteViewExpenseButton.disabled = false;
+        deleteViewExpenseButton.textContent = "Delete Expense";
+
+        alert("Failed to delete expense. Please try again.");
+    }
+});
+
+async function openExpenseDetails(expenseId) {
+  selectedExpenseId = expenseId;
+  try {
+    viewExpenseModal.classList.remove("hidden");
+
+    viewExpenseDescription.textContent = "Loading...";
+    viewExpenseAmount.textContent = "-";
+    viewExpensePaidBy.textContent = "-";
+    viewExpenseCategory.textContent = "-";
+    viewExpenseDate.textContent = "-";
+    viewExpenseSplitType.textContent = "-";
+    viewExpenseParticipants.innerHTML = "Loading...";
+
+    const response = await api.get(`/groups/${groupId}/expenses/${expenseId}`);
+
+    const expense = response.data;
+
+    viewExpenseDescription.textContent = expense.description;
+    viewExpenseAmount.textContent = `₹${(expense.amountPaise / 100).toFixed(
+      2
+    )}`;
+
+    viewExpenseCategory.textContent = expense.category;
+    viewExpenseDate.textContent = expense.expenseDate;
+    viewExpenseSplitType.textContent = expense.splitType;
+
+    // Find payer name
+    const payer = members.find((member) => member.uid === expense.paidBy);
+
+    viewExpensePaidBy.textContent = payer?.name || "Unknown";
+
+    // Participants
+    viewExpenseParticipants.innerHTML = "";
+
+    expense.participants.forEach((participant) => {
+      const member = members.find(
+        (member) => member.uid === participant.userId
+      );
+
+      const row = document.createElement("div");
+      row.className = "view-participant";
+
+      const name = document.createElement("span");
+      name.textContent = member?.name || "Unknown";
+
+      const amount = document.createElement("strong");
+
+      if (expense.splitType === "percentage") {
+        amount.textContent = `${participant.value}%`;
+      } else {
+        amount.textContent = `₹${(participant.amountPaise / 100).toFixed(2)}`;
+      }
+
+      row.appendChild(name);
+      row.appendChild(amount);
+
+      viewExpenseParticipants.appendChild(row);
+    });
+  } catch (error) {
+    console.error("Failed to load expense:", error);
+
+    viewExpenseParticipants.textContent = "Unable to load expense details.";
+  }
+}
+
+function closeExpenseDetails() {
+  viewExpenseModal.classList.add("hidden");
 }
 
 // ================================

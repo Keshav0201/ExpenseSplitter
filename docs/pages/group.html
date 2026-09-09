@@ -229,6 +229,69 @@
       </div>
     </div>
 
+    <!-- View Expense Modal -->
+    <div id="view-expense-modal" class="modal hidden">
+      <div class="modal-content expense-modal-content">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Transaction</p>
+            <h2 id="view-expense-title">Expense Details</h2>
+          </div>
+
+          <button id="close-view-expense-btn" class="close-btn" type="button">
+            ×
+          </button>
+        </div>
+
+        <div class="expense-details">
+          <div class="expense-detail-row">
+            <span>Description</span>
+            <strong id="view-expense-description">-</strong>
+          </div>
+
+          <div class="expense-detail-row">
+            <span>Amount</span>
+            <strong id="view-expense-amount">-</strong>
+          </div>
+
+          <div class="expense-detail-row">
+            <span>Paid by</span>
+            <strong id="view-expense-paid-by">-</strong>
+          </div>
+
+          <div class="expense-detail-row">
+            <span>Category</span>
+            <strong id="view-expense-category">-</strong>
+          </div>
+
+          <div class="expense-detail-row">
+            <span>Date</span>
+            <strong id="view-expense-date">-</strong>
+          </div>
+
+          <div class="expense-detail-row">
+            <span>Split type</span>
+            <strong id="view-expense-split-type">-</strong>
+          </div>
+        </div>
+
+        <div class="expense-participants">
+          <p class="eyebrow">Participants</p>
+
+          <div id="view-expense-participants">Loading...</div>
+        </div>
+        <div class="expense-modal-actions">
+          <button
+            type="button"
+            id="delete-view-expense-btn"
+            class="delete-expense-btn"
+          >
+            Delete Expense
+          </button>
+        </div>
+      </div>
+    </div>
+
     <footer class="landing-footer">
       <div class="brand">Expense<span>Splitter</span></div>
 
