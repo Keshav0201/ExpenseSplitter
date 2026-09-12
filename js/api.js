@@ -1,4 +1,4 @@
-const API_BASE_URL = "api.split.keshavdidwania.in/api";
+const API_BASE_URL = "https://api.split.keshavdidwania.in/api";
 
 async function getAuthToken() {
   if (!window.Clerk) {

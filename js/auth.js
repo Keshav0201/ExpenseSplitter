@@ -19,9 +19,9 @@ async function initializeAuth() {
         ClerkUI: window.__internal_ClerkUICtor,
       },
 
-      signInFallbackRedirectUrl: "/docs/pages/dashboard.html",
+      signInFallbackRedirectUrl: "/pages/dashboard.html",
 
-      signUpFallbackRedirectUrl: "/docs/pages/dashboard.html",
+      signUpFallbackRedirectUrl: "/pages/dashboard.html",
     });
 
     bar.style.width = "40%";
@@ -99,8 +99,8 @@ if (googleLoginButton) {
       bar.style.width = "40%";
 
       await Clerk.openSignIn({
-        signInFallbackRedirectUrl: "/docs/pages/dashboard.html",
-        signUpFallbackRedirectUrl: "/docs/pages/dashboard.html",
+        signInFallbackRedirectUrl: "/pages/dashboard.html",
+        signUpFallbackRedirectUrl: "/pages/dashboard.html",
       });
     } catch (error) {
       console.error("Google login failed:", error);
