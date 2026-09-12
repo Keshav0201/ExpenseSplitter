@@ -1,21 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
 
-<head>
-    <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <title>Profile | Expense Splitter</title>
 
-    <link rel="stylesheet" href="../css/global.css">
-    <link rel="stylesheet" href="../css/profile.css">
-</head>
+    <link rel="stylesheet" href="../css/global.css" />
+    <link rel="stylesheet" href="../css/profile.css" />
+  </head>
 
-<body>
+  <body>
     <div class="progress-bar-container" id="progress-bar-container">
       <div class="progress-container">
         <div class="progress-bar" id="bar"></div>
@@ -24,106 +20,67 @@
     </div>
     <!-- Header -->
     <header class="group-header">
+      <a href="./dashboard.html" class="back-link"> ← Dashboard </a>
 
-        <a href="./dashboard.html" class="back-link">
-            ← Dashboard
-        </a>
-
-        <button
-            id="logout-btn"
-            class="secondary-btn"
-        >
-            Logout
-        </button>
-
+      <button id="logout-btn" class="secondary-btn">Logout</button>
     </header>
 
-
     <main class="profile-page">
+      <section class="profile-section">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Account</p>
+            <h1>Profile</h1>
+          </div>
+        </div>
 
-        <section class="profile-section">
+        <form id="profile-form">
+          <!-- Name -->
+          <label for="profile-name"> Name </label>
 
-            <div class="section-header">
+          <input
+            type="text"
+            id="profile-name"
+            placeholder="Your name"
+            required
+          />
 
-                <div>
-                    <p class="eyebrow">Account</p>
-                    <h1>Profile</h1>
-                </div>
+          <!-- Email -->
+          <label for="profile-email"> Email </label>
 
-            </div>
+          <input type="email" id="profile-email" disabled />
 
+          <!-- UPI ID -->
+          <label for="profile-upi"> UPI ID </label>
 
-            <form id="profile-form">
+          <input type="text" id="profile-upi" placeholder="example@upi" />
 
-                <!-- Name -->
-                <label for="profile-name">
-                    Name
-                </label>
+          <p class="input-hint">
+            Add your UPI ID so group members can pay you directly.
+          </p>
 
-                <input
-                    type="text"
-                    id="profile-name"
-                    placeholder="Your name"
-                    required
-                >
+          <p id="profile-error" class="form-error"></p>
 
+          <p id="profile-success" class="success-message"></p>
 
-                <!-- Email -->
-                <label for="profile-email">
-                    Email
-                </label>
-
-                <input
-                    type="email"
-                    id="profile-email"
-                    disabled
-                >
-
-
-                <!-- UPI ID -->
-                <label for="profile-upi">
-                    UPI ID
-                </label>
-
-                <input
-                    type="text"
-                    id="profile-upi"
-                    placeholder="example@upi"
-                >
-
-                <p class="input-hint">
-                    Add your UPI ID so group members can pay you directly.
-                </p>
-
-
-                <p
-                    id="profile-error"
-                    class="form-error"
-                ></p>
-
-                <p
-                    id="profile-success"
-                    class="success-message"
-                ></p>
-
-
-                <button
-                    type="submit"
-                    id="save-profile-btn"
-                    class="primary-btn"
-                >
-                    Save Changes
-                </button>
-
-            </form>
-
-        </section>
-
+          <button type="submit" id="save-profile-btn" class="primary-btn">
+            Save Changes
+          </button>
+        </form>
+      </section>
     </main>
 
+    <script
+      crossorigin="anonymous"
+      src="https://joint-crab-6844.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js"
+    ></script>
+
+    <script
+      crossorigin="anonymous"
+      data-clerk-publishable-key="pk_test_am9pbnQtY3JhYi02ODQ0LmNsZXJrLmFjY291bnRzLmRldiQ"
+      src="https://joint-crab-6844.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js"
+    ></script>
 
     <script type="module" src="../js/profile.js"></script>
-
-</body>
-
+  </body>
 </html>

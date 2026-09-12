@@ -1,48 +1,95 @@
-import { auth } from "./firebase.js";
-
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  onAuthStateChanged,
-} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-
 import { api } from "./api.js";
+
 const bar = document.getElementById("bar");
-bar.style.width = "0%";
 const loadingBar = document.getElementById("progress-bar-container");
+const googleLoginButton = document.getElementById("google-login-btn");
+const authError = document.getElementById("login-error");
+
+bar.style.width = "0%";
 loadingBar.style.display = "none";
 
-const googleLoginButton = document.getElementById("google-login-btn");
-
-const authError = document.getElementById("auth-error");
-
-const provider = new GoogleAuthProvider();
-
-/* =========================
-   Google Login
-========================= */
-
-if (googleLoginButton) {
-  const googleLoginText = googleLoginButton.querySelector("span");
-
-  googleLoginButton.addEventListener("click", async () => {
+async function initializeAuth() {
+  try {
     loadingBar.style.display = "flex";
     bar.style.width = "20%";
-    if (authError) {
-      authError.textContent = "";
-    }
 
-    googleLoginButton.disabled = true;
+    // Load Clerk + UI components
+    await Clerk.load({
+      ui: {
+        ClerkUI: window.__internal_ClerkUICtor,
+      },
+    });
+
     bar.style.width = "40%";
 
-    if (googleLoginText) {
-      googleLoginText.textContent = "Signing in...";
+    console.log("Clerk loaded!");
+    console.log("Signed in:", Clerk.isSignedIn);
+
+    if (Clerk.isSignedIn) {
+      console.log(
+        "User is already signed in:",
+        Clerk.user?.primaryEmailAddress?.emailAddress
+      );
+
+      bar.style.width = "60%";
+
+      try {
+        await api.get("/users/me");
+      } catch (error) {
+        console.error("Failed to initialize user profile:", error);
+      }
+
+      bar.style.width = "100%";
+
+      window.location.href = "./dashboard.html";
+
+      return;
     }
 
+    console.log("No authenticated user");
+
+    if (googleLoginButton) {
+      googleLoginButton.disabled = false;
+
+      const googleLoginText = googleLoginButton.querySelector("span");
+
+      if (googleLoginText) {
+        googleLoginText.textContent = "Continue with Google";
+      }
+    }
+  } catch (error) {
+    console.error("Clerk initialization failed:", error);
+
+    if (authError) {
+      authError.textContent = "Unable to initialize authentication.";
+    }
+  } finally {
+    loadingBar.style.display = "none";
+    bar.style.width = "0%";
+  }
+}
+
+if (googleLoginButton) {
+  googleLoginButton.addEventListener("click", async () => {
+    const googleLoginText = googleLoginButton.querySelector("span");
+
     try {
-      bar.style.width = "60%";
-      await signInWithPopup(auth, provider);
-      bar.style.width = "80%";
+      loadingBar.style.display = "flex";
+      bar.style.width = "20%";
+
+      if (authError) {
+        authError.textContent = "";
+      }
+
+      googleLoginButton.disabled = true;
+
+      if (googleLoginText) {
+        googleLoginText.textContent = "Signing in...";
+      }
+
+      bar.style.width = "40%";
+
+      await Clerk.openSignIn();
     } catch (error) {
       console.error("Google login failed:", error);
 
@@ -55,62 +102,11 @@ if (googleLoginButton) {
       if (googleLoginText) {
         googleLoginText.textContent = "Continue with Google";
       }
+
+      loadingBar.style.display = "none";
+      bar.style.width = "0%";
     }
-    loadingBar.style.display = "none";
-    bar.style.width = "0%";
   });
 }
 
-/* =========================
-   Authentication State
-========================= */
-
-onAuthStateChanged(auth, async (user) => {
-  loadingBar.style.display = "flex";
-  bar.style.width = "20%";
-  if (user) {
-    console.log("User is logged in:", user.email);
-    bar.style.width = "40%";
-
-    try {
-      const profile = await api.get("/users/me");
-
-      console.log("Backend profile:", profile);
-      loadingBar.style.display = "none";
-      bar.style.width = "0%";
-      window.location.href = "./dashboard.html";
-    } catch (error) {
-      console.error("Backend authentication failed:", error);
-
-      if (authError) {
-        authError.textContent = "Login failed. Please try again.";
-      }
-
-      if (googleLoginButton) {
-        googleLoginButton.disabled = false;
-
-        const googleLoginText = googleLoginButton.querySelector("span");
-
-        if (googleLoginText) {
-          googleLoginText.textContent = "Continue with Google";
-        }
-      }
-    }
-    loadingBar.style.display = "none";
-    bar.style.width = "0%";
-  } else {
-    console.log("No authenticated user");
-
-    if (googleLoginButton) {
-      googleLoginButton.disabled = false;
-
-      const googleLoginText = googleLoginButton.querySelector("span");
-
-      if (googleLoginText) {
-        googleLoginText.textContent = "Continue with Google";
-      }
-    }
-  }
-  loadingBar.style.display = "none";
-  bar.style.width = "0%";
-});
+initializeAuth();

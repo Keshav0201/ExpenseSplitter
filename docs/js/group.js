@@ -1,24 +1,15 @@
-import { auth } from "./firebase.js";
-
-import {
-  onAuthStateChanged,
-  signOut,
-} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-
 import { api } from "./api.js";
-
-// ================================
-// Get group ID from URL
-// ================================
 
 const bar = document.getElementById("bar");
 bar.style.width = "0%";
+
 const loadingBar = document.getElementById("progress-bar-container");
+
 function setProgress(percent) {
   bar.style.width = `${percent}%`;
 }
-const params = new URLSearchParams(window.location.search);
 
+const params = new URLSearchParams(window.location.search);
 const groupId = params.get("id");
 
 // ================================
@@ -26,17 +17,11 @@ const groupId = params.get("id");
 // ================================
 
 const groupName = document.getElementById("group-name");
-
 const groupDescription = document.getElementById("group-description");
-
 const myBalance = document.getElementById("my-balance");
-
 const membersContainer = document.getElementById("members-container");
-
 const expensesContainer = document.getElementById("expenses-container");
-
 const settlementsContainer = document.getElementById("settlements-container");
-
 const logoutButton = document.getElementById("logout-btn");
 
 // Add member
@@ -64,6 +49,7 @@ const expenseError = document.getElementById("expense-error");
 const submitExpenseButton = document.getElementById("submit-expense-btn");
 const cancelExpenseButton = document.getElementById("cancel-expense-btn");
 const closeExpenseButton = document.getElementById("close-expense-btn");
+
 const viewExpenseModal = document.getElementById("view-expense-modal");
 const closeViewExpenseButton = document.getElementById(
   "close-view-expense-btn"
@@ -80,9 +66,11 @@ const viewExpenseSplitType = document.getElementById("view-expense-split-type");
 const viewExpenseParticipants = document.getElementById(
   "view-expense-participants"
 );
+
 const deleteViewExpenseButton = document.getElementById(
   "delete-view-expense-btn"
 );
+
 // ================================
 // State
 // ================================
@@ -96,24 +84,44 @@ let selectedExpenseId = null;
 // Authentication
 // ================================
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    window.location.href = "./login.html";
+async function initializePage() {
+  try {
+    setProgress(10);
 
-    return;
+    if (!groupId) {
+      showPageError("Invalid group.");
+      return;
+    }
+
+    const response = await api.get("/users/me");
+
+    currentUser = response.data;
+
+    if (!currentUser) {
+      throw new Error("User profile not found");
+    }
+
+    await loadGroupPage();
+
+  } catch (error) {
+    console.error(
+      "Failed to initialize group page:",
+      error
+    );
+
+    if (
+      error.message === "User is not authenticated" ||
+      error.message === "Authentication required"
+    ) {
+      window.location.href = "./login.html";
+      return;
+    }
+
+    showPageError(
+      error.message || "Unable to load group."
+    );
   }
-
-  currentUser = user;
-
-  if (!groupId) {
-    showPageError("Invalid group.");
-
-    return;
-  }
-
-  await loadGroupPage();
-});
-
+}
 // ================================
 // Load entire group page
 // ================================
@@ -124,6 +132,7 @@ async function loadGroupPage() {
 
   try {
     await loadGroup();
+
     setProgress(30);
 
     if (currentGroup.type === "personal") {
@@ -165,6 +174,7 @@ async function loadGroupPage() {
     loadingBar.style.display = "none";
   }
 }
+
 // ================================
 // Group
 // ================================
@@ -185,22 +195,29 @@ async function loadGroup() {
 
 async function loadMembers() {
   try {
-    const memberIds = Object.keys(currentGroup.members);
+    /*
+     * D1 returns:
+     *
+     * members: [
+     *   {
+     *     userId,
+     *     role,
+     *     name,
+     *     email,
+     *     photoURL,
+     *     upiId
+     *   }
+     * ]
+     */
 
-    const memberProfiles = await Promise.all(
-      memberIds.map(async (uid) => {
-        const response = await api.get(`/users/${uid}`);
-        return response.data;
-      })
-    );
-
-    members = memberProfiles;
+    members = currentGroup.members || [];
 
     renderMembers();
     populatePaidBy();
     renderParticipants();
   } catch (error) {
     console.error("Failed to load members:", error);
+
     showToast("Failed to load group members");
   }
 }
@@ -208,10 +225,10 @@ async function loadMembers() {
 function renderMembers() {
   if (members.length === 0) {
     membersContainer.innerHTML = `
-            <div class="empty-state">
-                No members found.
-            </div>
-        `;
+      <div class="empty-state">
+        No members found.
+      </div>
+    `;
 
     return;
   }
@@ -229,7 +246,7 @@ function renderMembers() {
 
     image.src = member.photoURL || "https://ui-avatars.com/api/?name=User";
 
-    image.alt = member.name;
+    image.alt = member.name || "Member";
 
     const info = document.createElement("div");
 
@@ -238,18 +255,18 @@ function renderMembers() {
     const name = document.createElement("h3");
 
     name.textContent =
-      member.uid === currentUser.uid ? `${member.name} (You)` : member.name;
+      Number(member.userId) === Number(currentUser.id)
+        ? `${member.name} (You)`
+        : member.name;
 
     const email = document.createElement("p");
 
     email.textContent = member.email || "Member";
 
     info.appendChild(name);
-
     info.appendChild(email);
 
     card.appendChild(image);
-
     card.appendChild(info);
 
     membersContainer.appendChild(card);
@@ -264,14 +281,21 @@ async function loadBalance() {
   myBalance.textContent = "Loading...";
 
   try {
-    const balance = currentGroup.balances?.[currentUser.uid];
+    const response = await api.get(`/groups/${groupId}/balances`);
 
-    if (!balance) {
+    const balances = response.data || [];
+
+    const myBalanceData = balances.find(
+      (balance) => Number(balance.userId) === Number(currentUser.id)
+    );
+
+    if (!myBalanceData) {
       myBalance.textContent = "No balance information.";
+
       return;
     }
 
-    const amount = balance.balancePaise || 0;
+    const amount = myBalanceData.balancePaise || 0;
 
     if (amount > 0) {
       myBalance.textContent = `You are owed ${formatCurrency(amount)}`;
@@ -294,11 +318,13 @@ async function loadBalance() {
 async function loadExpenses() {
   try {
     const response = await api.get(`/groups/${groupId}/expenses`);
+
     const expenses = response.data || [];
 
     renderExpenses(expenses);
   } catch (error) {
     console.error("Failed to load expenses:", error);
+
     showToast("Failed to load expenses");
   }
 }
@@ -318,8 +344,8 @@ function renderExpenses(expenses) {
 
   expenses.forEach((expense) => {
     const card = document.createElement("div");
+
     card.addEventListener("click", (event) => {
-      // Don't open the details dialog when Delete is clicked
       if (event.target.closest(".delete-expense-btn")) {
         return;
       }
@@ -329,7 +355,6 @@ function renderExpenses(expenses) {
 
     card.className = "expense-card";
 
-    // Expense information
     const info = document.createElement("div");
 
     info.className = "expense-info";
@@ -347,7 +372,6 @@ function renderExpenses(expenses) {
     info.appendChild(title);
     info.appendChild(details);
 
-    // Amount
     const amount = document.createElement("span");
 
     amount.className = "expense-amount";
@@ -375,10 +399,10 @@ viewExpenseModal.addEventListener("click", (event) => {
 
 async function loadSettlements() {
   settlementsContainer.innerHTML = `
-        <div class="loading-state">
-            Loading settlements...
-        </div>
-    `;
+    <div class="loading-state">
+      Loading settlements...
+    </div>
+  `;
 
   try {
     const response = await api.get(`/groups/${groupId}/settlements`);
@@ -390,20 +414,20 @@ async function loadSettlements() {
     console.error("Failed to load settlements:", error);
 
     settlementsContainer.innerHTML = `
-            <div class="error-state">
-                Unable to load settlements.
-            </div>
-        `;
+      <div class="error-state">
+        Unable to load settlements.
+      </div>
+    `;
   }
 }
 
 function renderSettlements(settlements) {
   if (settlements.length === 0) {
     settlementsContainer.innerHTML = `
-            <div class="empty-state">
-                Everyone is settled up.
-            </div>
-        `;
+      <div class="empty-state">
+        Everyone is settled up.
+      </div>
+    `;
 
     return;
   }
@@ -432,17 +456,19 @@ function renderSettlements(settlements) {
     amount.textContent = formatCurrency(settlement.amountPaise);
 
     card.appendChild(info);
-
     card.appendChild(amount);
 
-    if (settlement.from === auth.currentUser.uid) {
+    // Only the payer can complete settlement
+    if (Number(settlement.from) === Number(currentUser.id)) {
       const button = document.createElement("button");
 
       button.className = "settlement-button";
+
       button.textContent = "Mark as Paid";
 
       button.addEventListener("click", async () => {
         button.disabled = true;
+
         button.textContent = "Marking as Paid...";
 
         try {
@@ -452,30 +478,27 @@ function renderSettlements(settlements) {
             amountPaise: settlement.amountPaise,
           });
 
-          settlement = response.data;
+          const createdSettlement = response.data;
 
           await api.patch(
-            `/groups/${groupId}/settlements/${settlement.id}/complete`,
-            {
-              from: settlement.from,
-              to: settlement.to,
-              amountPaise: settlement.amountPaise,
-            }
+            `/groups/${groupId}/settlements/${createdSettlement.id}/complete`
           );
 
-          await loadGroup();
           await Promise.all([loadBalance(), loadSettlements()]);
         } catch (error) {
           console.error("Settlement failed:", error);
+
           showToast("Failed to settle.");
         } finally {
           button.disabled = false;
+
           button.textContent = "Mark as Paid";
         }
       });
 
       card.appendChild(button);
     }
+
     settlementsContainer.appendChild(card);
   });
 }
@@ -530,24 +553,23 @@ addMemberForm.addEventListener("submit", async (event) => {
 
     const user = searchResponse.data;
 
-    if (!user || !user.uid) {
+    if (!user || !user.id) {
       throw new Error("User not found.");
     }
 
-    if (user.uid === currentUser.uid) {
+    if (Number(user.id) === Number(currentUser.id)) {
       throw new Error("You are already in this group.");
     }
 
     submitMemberButton.textContent = "Adding...";
 
     await api.post(`/groups/${groupId}/members`, {
-      userId: user.uid,
+      userId: user.id,
     });
 
     closeMemberModal();
 
     await loadGroup();
-
     await loadMembers();
   } catch (error) {
     console.error("Add member failed:", error);
@@ -575,14 +597,9 @@ function openExpenseModal() {
 
   expenseForm.reset();
 
-  /*
-   * Default expense date to today.
-   */
-
   expenseDate.value = new Date().toISOString().split("T")[0];
 
   populatePaidBy();
-
   renderParticipants();
 
   expenseModal.classList.remove("hidden");
@@ -602,23 +619,25 @@ function closeExpenseModal() {
 
 function populatePaidBy() {
   expensePaidBy.innerHTML = `
-        <option value="">
-            Select member
-        </option>
-    `;
+    <option value="">
+      Select member
+    </option>
+  `;
 
   members.forEach((member) => {
     const option = document.createElement("option");
 
-    option.value = member.uid;
+    option.value = member.userId;
 
     option.textContent =
-      member.uid === currentUser.uid ? `${member.name} (You)` : member.name;
+      Number(member.userId) === Number(currentUser.id)
+        ? `${member.name} (You)`
+        : member.name;
 
     expensePaidBy.appendChild(option);
   });
 
-  expensePaidBy.value = currentUser.uid;
+  expensePaidBy.value = currentUser.id;
 }
 
 // ================================
@@ -639,17 +658,18 @@ function renderParticipants() {
 
     checkbox.className = "participant-checkbox";
 
-    checkbox.value = member.uid;
+    checkbox.value = member.userId;
 
     checkbox.checked = true;
 
     const name = document.createElement("span");
 
     name.textContent =
-      member.uid === currentUser.uid ? `${member.name} (You)` : member.name;
+      Number(member.userId) === Number(currentUser.id)
+        ? `${member.name} (You)`
+        : member.name;
 
     row.appendChild(checkbox);
-
     row.appendChild(name);
 
     participantsList.appendChild(row);
@@ -660,9 +680,7 @@ function renderParticipants() {
 // Split type changes
 // ================================
 
-expenseSplitType.addEventListener("change", () => {
-  updateParticipantInputs();
-});
+expenseSplitType.addEventListener("change", updateParticipantInputs);
 
 function updateParticipantInputs() {
   const type = expenseSplitType.value;
@@ -676,7 +694,7 @@ function updateParticipantInputs() {
       existingInput.remove();
     }
 
-    if (type === "exact") {
+    if (type === "exact" || type === "percentage") {
       const input = document.createElement("input");
 
       input.type = "number";
@@ -685,25 +703,11 @@ function updateParticipantInputs() {
 
       input.step = "0.01";
 
-      input.placeholder = "₹ amount";
+      input.placeholder = type === "exact" ? "₹ amount" : "%";
 
-      input.className = "participant-value";
-
-      row.appendChild(input);
-    }
-
-    if (type === "percentage") {
-      const input = document.createElement("input");
-
-      input.type = "number";
-
-      input.min = "0";
-
-      input.max = "100";
-
-      input.step = "0.01";
-
-      input.placeholder = "%";
+      if (type === "percentage") {
+        input.max = "100";
+      }
 
       input.className = "participant-value";
 
@@ -711,6 +715,10 @@ function updateParticipantInputs() {
     }
   });
 }
+
+// ================================
+// Expense loading
+// ================================
 
 function showExpenseLoading() {
   let loader = document.getElementById("expense-loading");
@@ -741,11 +749,12 @@ function showExpenseLoading() {
 }
 
 function setExpenseProgress(percent, text) {
-  const bar = document.getElementById("expense-loading-bar");
+  const expenseLoadingBar = document.getElementById("expense-loading-bar");
+
   const textElement = document.getElementById("expense-loading-text");
 
-  if (bar) {
-    bar.style.width = `${percent}%`;
+  if (expenseLoadingBar) {
+    expenseLoadingBar.style.width = `${percent}%`;
   }
 
   if (textElement) {
@@ -761,49 +770,64 @@ function hideExpenseLoading() {
   }
 }
 
+// ================================
+// Delete expense
+// ================================
+
 deleteViewExpenseButton.addEventListener("click", async () => {
+  if (!selectedExpenseId) {
+    return;
+  }
 
-    if (!selectedExpenseId) return;
+  const confirmed = confirm("Are you sure you want to delete this expense?");
 
-    const confirmed = confirm(
-        "Are you sure you want to delete this expense?"
-    );
+  if (!confirmed) {
+    return;
+  }
 
-    if (!confirmed) return;
+  try {
+    deleteViewExpenseButton.disabled = true;
 
-    try {
-        deleteViewExpenseButton.disabled = true;
-        deleteViewExpenseButton.textContent = "Deleting...";
+    deleteViewExpenseButton.textContent = "Deleting...";
 
-        await api.delete(
-            `/groups/${groupId}/expenses/${selectedExpenseId}`
-        );
+    await api.delete(`/groups/${groupId}/expenses/${selectedExpenseId}`);
 
-        clearExpenseCache();
+    clearExpenseCache();
 
-        window.location.reload();
+    window.location.reload();
+  } catch (error) {
+    console.error("Failed to delete expense:", error);
 
-    } catch (error) {
-        console.error("Failed to delete expense:", error);
+    deleteViewExpenseButton.disabled = false;
 
-        deleteViewExpenseButton.disabled = false;
-        deleteViewExpenseButton.textContent = "Delete Expense";
+    deleteViewExpenseButton.textContent = "Delete Expense";
 
-        alert("Failed to delete expense. Please try again.");
-    }
+    alert("Failed to delete expense. Please try again.");
+  }
 });
+
+// ================================
+// Expense details
+// ================================
 
 async function openExpenseDetails(expenseId) {
   selectedExpenseId = expenseId;
+
   try {
     viewExpenseModal.classList.remove("hidden");
 
     viewExpenseDescription.textContent = "Loading...";
+
     viewExpenseAmount.textContent = "-";
+
     viewExpensePaidBy.textContent = "-";
+
     viewExpenseCategory.textContent = "-";
+
     viewExpenseDate.textContent = "-";
+
     viewExpenseSplitType.textContent = "-";
+
     viewExpenseParticipants.innerHTML = "Loading...";
 
     const response = await api.get(`/groups/${groupId}/expenses/${expenseId}`);
@@ -811,37 +835,42 @@ async function openExpenseDetails(expenseId) {
     const expense = response.data;
 
     viewExpenseDescription.textContent = expense.description;
+
     viewExpenseAmount.textContent = `₹${(expense.amountPaise / 100).toFixed(
       2
     )}`;
 
     viewExpenseCategory.textContent = expense.category;
+
     viewExpenseDate.textContent = expense.expenseDate;
+
     viewExpenseSplitType.textContent = expense.splitType;
 
-    // Find payer name
-    const payer = members.find((member) => member.uid === expense.paidBy);
+    const payer = members.find(
+      (member) => Number(member.userId) === Number(expense.paidBy)
+    );
 
     viewExpensePaidBy.textContent = payer?.name || "Unknown";
 
-    // Participants
     viewExpenseParticipants.innerHTML = "";
 
     expense.participants.forEach((participant) => {
       const member = members.find(
-        (member) => member.uid === participant.userId
+        (member) => Number(member.userId) === Number(participant.userId)
       );
 
       const row = document.createElement("div");
+
       row.className = "view-participant";
 
       const name = document.createElement("span");
+
       name.textContent = member?.name || "Unknown";
 
       const amount = document.createElement("strong");
 
       if (expense.splitType === "percentage") {
-        amount.textContent = `${participant.value}%`;
+        amount.textContent = `${participant.percentage}%`;
       } else {
         amount.textContent = `₹${(participant.amountPaise / 100).toFixed(2)}`;
       }
@@ -873,13 +902,19 @@ expenseForm.addEventListener("submit", async (event) => {
 
   try {
     submitExpenseButton.disabled = true;
+
     submitExpenseButton.textContent = "Adding...";
 
     const description = expenseDescription.value.trim();
+
     const amount = Number(expenseAmount.value);
-    const paidBy = expensePaidBy.value;
+
+    const paidBy = Number(expensePaidBy.value);
+
     const splitType = expenseSplitType.value;
+
     const category = expenseCategory.value;
+
     const date = expenseDate.value;
 
     if (!description) {
@@ -907,31 +942,38 @@ expenseForm.addEventListener("submit", async (event) => {
     let participants;
 
     if (splitType === "equal") {
-      participants = selectedParticipants.map((checkbox) => checkbox.value);
+      participants = selectedParticipants.map((checkbox) =>
+        Number(checkbox.value)
+      );
     } else {
       participants = selectedParticipants.map((checkbox) => {
         const row = checkbox.closest(".participant-row");
+
         const input = row.querySelector(".participant-value");
+
         const value = Number(input.value);
 
-        if (!value || value < 0) {
+        if (!Number.isFinite(value) || value < 0) {
           throw new Error("Enter valid split values.");
         }
 
         if (splitType === "exact") {
           return {
-            userId: checkbox.value,
+            userId: Number(checkbox.value),
+
             amountPaise: rupeesToPaise(value),
           };
         }
 
         return {
-          userId: checkbox.value,
+          userId: Number(checkbox.value),
+
           percentage: value,
         };
       });
     }
 
+    // Client-side validation
     if (splitType === "exact") {
       const total = participants.reduce(
         (sum, participant) => sum + participant.amountPaise,
@@ -949,7 +991,7 @@ expenseForm.addEventListener("submit", async (event) => {
         0
       );
 
-      if (total !== 100) {
+      if (Math.abs(total - 100) > 0.000001) {
         throw new Error("Percentages must add up to 100%.");
       }
     }
@@ -981,7 +1023,7 @@ expenseForm.addEventListener("submit", async (event) => {
     clearExpenseCache();
 
     // --------------------------------
-    // Refresh group
+    // Refresh
     // --------------------------------
 
     await loadGroup();
@@ -1002,14 +1044,11 @@ expenseForm.addEventListener("submit", async (event) => {
 
     await loadBalance();
 
-    // --------------------------------
-    // Everything finished
-    // --------------------------------
-
     setExpenseProgress(100, "Expense added!");
 
     setTimeout(() => {
       hideExpenseLoading();
+
       closeExpenseModal();
     }, 400);
   } catch (error) {
@@ -1020,9 +1059,14 @@ expenseForm.addEventListener("submit", async (event) => {
     expenseError.textContent = error.message || "Unable to create expense.";
   } finally {
     submitExpenseButton.disabled = false;
+
     submitExpenseButton.textContent = "Add Expense";
   }
 });
+
+// ================================
+// Cache
+// ================================
 
 function clearExpenseCache() {
   Object.keys(localStorage).forEach((key) => {
@@ -1044,7 +1088,9 @@ logoutButton.addEventListener("click", async () => {
 
     logoutButton.textContent = "Logging out...";
 
-    await signOut(auth);
+    if (window.Clerk && Clerk.signOut) {
+      await Clerk.signOut();
+    }
 
     window.location.href = "./login.html";
   } catch (error) {
@@ -1060,12 +1106,12 @@ logoutButton.addEventListener("click", async () => {
 // Helpers
 // ================================
 
-function getMemberName(uid) {
-  if (uid === currentUser.uid) {
+function getMemberName(userId) {
+  if (Number(userId) === Number(currentUser.id)) {
     return "You";
   }
 
-  const member = members.find((item) => item.uid === uid);
+  const member = members.find((item) => Number(item.userId) === Number(userId));
 
   return member ? member.name : "Member";
 }
@@ -1087,3 +1133,9 @@ function showPageError(message) {
 
   groupDescription.textContent = message;
 }
+
+// ================================
+// Start
+// ================================
+
+initializePage();

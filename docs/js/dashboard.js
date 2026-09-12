@@ -1,15 +1,9 @@
-import { auth } from "./firebase.js";
-
-import {
-  onAuthStateChanged,
-  signOut,
-} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-
 import { api } from "./api.js";
 
 // =========================
 // DOM Elements
 // =========================
+let currentUser = null;
 const bar = document.getElementById("bar");
 bar.style.width = "0%";
 
@@ -18,14 +12,13 @@ const loadingBar = document.getElementById("progress-bar-container");
 function setProgress(percent) {
   bar.style.width = `${percent}%`;
 }
-const welcomeName = document.getElementById("welcome-name");
 
+const welcomeName = document.getElementById("welcome-name");
 const userName = document.getElementById("user-name");
 const upiIdText = document.getElementById("add-upi-request");
 const userPhoto = document.getElementById("user-photo");
 
 const totalOwe = document.getElementById("total-owe");
-
 const totalOwed = document.getElementById("total-owed");
 
 const groupsContainer = document.getElementById("groups-container");
@@ -33,19 +26,12 @@ const groupsContainer = document.getElementById("groups-container");
 const logoutButton = document.getElementById("logout-btn");
 
 const createGroupButton = document.getElementById("create-group-btn");
-
 const createGroupModal = document.getElementById("create-group-modal");
-
 const createGroupForm = document.getElementById("create-group-form");
-
 const cancelGroupButton = document.getElementById("cancel-group-btn");
-
 const closeGroupButton = document.getElementById("close-group-btn");
-
 const groupNameInput = document.getElementById("group-name");
-
 const groupError = document.getElementById("group-error");
-
 const submitGroupButton = document.getElementById("submit-group-btn");
 
 // =========================
@@ -53,92 +39,89 @@ const submitGroupButton = document.getElementById("submit-group-btn");
 // =========================
 
 let spendingChart = null;
-
 let userExpenses = [];
 
+async function loadCurrentUser() {
+  if (currentUser) {
+    return currentUser;
+  }
+
+  const response = await api.get("/users/me");
+
+  const user = response.data;
+
+  if (!user) {
+    throw new Error("User information not returned by API");
+  }
+
+  currentUser = user;
+
+  return currentUser;
+}
+
 async function loadUserExpenses(fromDate) {
+  const cacheKey = `userExpenses_${fromDate}`;
+  const CACHE_DURATION = 5 * 60 * 1000;
 
-    const cacheKey = `userExpenses_${fromDate}`;
-    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  // Check localStorage
+  const cachedData = localStorage.getItem(cacheKey);
 
-    // Check localStorage
-    const cachedData = localStorage.getItem(cacheKey);
-
-    if (cachedData) {
-
-        try {
-
-            const cached = JSON.parse(cachedData);
-
-            const cacheAge = Date.now() - cached.cachedAt;
-
-            // Cache is still valid
-            if (cacheAge < CACHE_DURATION) {
-
-                console.log("Loaded expenses from localStorage");
-
-                userExpenses = cached.data;
-
-                renderSpendingChart();
-
-                return;
-            }
-
-            // Cache expired
-            localStorage.removeItem(cacheKey);
-
-        } catch (error) {
-
-            console.error("Invalid expense cache:", error);
-
-            localStorage.removeItem(cacheKey);
-        }
-    }
-
-
-    // Cache unavailable/expired → fetch from backend
-    console.log("Loading expenses from database...");
-
+  if (cachedData) {
     try {
+      const cached = JSON.parse(cachedData);
+      const cacheAge = Date.now() - cached.cachedAt;
 
-        const response = await api.get(
-            `/users/me/expenses?fromDate=${fromDate}`
-        );
+      if (cacheAge < CACHE_DURATION) {
+        console.log("Loaded expenses from localStorage");
 
-        userExpenses = response.data || [];
-
-        // Save to localStorage
-        localStorage.setItem(
-            cacheKey,
-            JSON.stringify({
-                data: userExpenses,
-                cachedAt: Date.now()
-            })
-        );
+        userExpenses = cached.data;
 
         renderSpendingChart();
 
+        return;
+      }
+
+      localStorage.removeItem(cacheKey);
     } catch (error) {
-
-        console.error("Failed to load user expenses:", error);
-
-        userExpenses = [];
-
-        renderSpendingChart();
+      console.error("Invalid expense cache:", error);
+      localStorage.removeItem(cacheKey);
     }
+  }
+
+  // Cache unavailable/expired → fetch from backend
+  console.log("Loading expenses from database...");
+
+  try {
+    const response = await api.get(`/users/me/expenses?fromDate=${fromDate}`);
+
+    userExpenses = response.data || [];
+
+    localStorage.setItem(
+      cacheKey,
+      JSON.stringify({
+        data: userExpenses,
+        cachedAt: Date.now(),
+      })
+    );
+
+    renderSpendingChart();
+  } catch (error) {
+    console.error("Failed to load user expenses:", error);
+
+    userExpenses = [];
+
+    renderSpendingChart();
+  }
 }
 
 function clearExpenseCache() {
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith("userExpenses_")) {
+      localStorage.removeItem(key);
+    }
+  });
 
-    Object.keys(localStorage).forEach((key) => {
-
-        if (key.startsWith("userExpenses_")) {
-            localStorage.removeItem(key);
-        }
-
-    });
-
-    console.log("Expense cache cleared");
+  console.log("Expense cache cleared");
 }
 
 // =========================
@@ -167,7 +150,6 @@ function getFromDate(range) {
     const date = new Date(today);
 
     date.setMonth(today.getMonth() - 5);
-
     date.setDate(1);
 
     return formatDate(date);
@@ -184,9 +166,7 @@ function getFromDate(range) {
 
 function formatDate(date) {
   const year = date.getFullYear();
-
   const month = String(date.getMonth() + 1).padStart(2, "0");
-
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
@@ -197,7 +177,13 @@ function formatDate(date) {
 // =========================
 
 function renderSpendingChart() {
-  const range = document.getElementById("spending-range").value;
+  const rangeElement = document.getElementById("spending-range");
+
+  if (!rangeElement) {
+    return;
+  }
+
+  const range = rangeElement.value;
 
   const groupedExpenses = {};
 
@@ -225,7 +211,6 @@ function renderSpendingChart() {
   const amounts = dates.map((date) => groupedExpenses[date] / 100);
 
   // Total spending
-
   const totalPaise = userExpenses.reduce(
     (sum, expense) => sum + expense.amountPaise,
     0
@@ -236,7 +221,6 @@ function renderSpendingChart() {
   ).toLocaleString("en-IN")}`;
 
   // Chart
-
   const canvas = document.getElementById("spending-chart");
 
   if (!canvas) {
@@ -258,17 +242,11 @@ function renderSpendingChart() {
       datasets: [
         {
           label: "Spending",
-
           data: amounts,
-
           borderWidth: 2,
-
           tension: 0.35,
-
           fill: true,
-
           pointRadius: 4,
-
           pointHoverRadius: 6,
         },
       ],
@@ -276,7 +254,6 @@ function renderSpendingChart() {
 
     options: {
       responsive: true,
-
       maintainAspectRatio: false,
 
       plugins: {
@@ -329,35 +306,30 @@ document
   });
 
 // =========================
-// Authentication
+// Authentication - CLERK
 // =========================
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    window.location.href = "./login.html";
-    return;
-  }
-
-  loadingBar.style.display = "flex";
-  setProgress(10);
-
+async function initializeDashboard() {
   try {
-    // User information
-    await renderUser(user);
+    loadingBar.style.display = "flex";
+    setProgress(10);
+
+    // Loads and caches the current D1 user
+    await loadCurrentUser();
+    await renderUser();
+
     setProgress(30);
 
-    // Load spending
     const range = document.getElementById("spending-range").value;
     const fromDate = getFromDate(range);
 
     await loadUserExpenses(fromDate);
+
     setProgress(55);
 
-    // Load dashboard
     await loadDashboard();
-    setProgress(90);
 
-    // Everything is loaded
+    setProgress(90);
     setProgress(100);
 
     setTimeout(() => {
@@ -366,32 +338,56 @@ onAuthStateChanged(auth, async (user) => {
 
   } catch (error) {
     console.error("Failed to load dashboard:", error);
+
     loadingBar.style.display = "none";
+
+    if (
+      error.message === "User is not authenticated" ||
+      error.message === "Authentication required"
+    ) {
+      window.location.href = "./login.html";
+      return;
+    }
+
+    groupsContainer.innerHTML = `
+      <div class="error-state">
+        Unable to load your dashboard.
+        Please try again.
+      </div>
+    `;
   }
-});
+}
 
 // =========================
 // User Information
 // =========================
 
-async function renderUser(user) {
-  const response = await api.get("/users/me");
-  const name = response.data.name || "User";
+async function renderUser() {
+  const user = await loadCurrentUser();
+
+  const name = user.name || "User";
+
   welcomeName.textContent = name;
   userName.textContent = name;
-  if(!response.data.upiId) {
-    upiIdText.textContent = "Add your UPI ID to receive payments";
-  }else{
+
+  const upiId = user.upiId || user.upi_id;
+
+  if (!upiId) {
+    upiIdText.textContent =
+      "Add your UPI ID to receive payments";
+    upiIdText.style.display = "";
+  } else {
     upiIdText.style.display = "none";
   }
 
-  if (user.photoURL) {
-    userPhoto.src = user.photoURL;
+  if (window.Clerk?.user?.imageUrl) {
+    userPhoto.src = Clerk.user.imageUrl;
+  } else if (user.photoURL || user.photo_url) {
+    userPhoto.src = user.photoURL || user.photo_url;
   } else {
     userPhoto.style.display = "none";
   }
 }
-
 // =========================
 // Dashboard Data
 // =========================
@@ -403,7 +399,6 @@ async function loadDashboard() {
 // =========================
 // Groups
 // =========================
-
 
 async function loadGroups() {
   groupsContainer.innerHTML = `
@@ -419,7 +414,13 @@ async function loadGroups() {
 
     renderGroups(groups);
 
-    await loadBalances(groups);
+    if (groups.length > 0) {
+      await loadBalances(groups);
+    } else {
+      totalOwe.textContent = formatCurrency(0);
+      totalOwed.textContent = formatCurrency(0);
+    }
+
   } catch (error) {
     console.error("Failed to load groups:", error);
 
@@ -478,7 +479,6 @@ function renderGroups(groups) {
     description.textContent = "View group details";
 
     card.appendChild(title);
-
     card.appendChild(description);
 
     card.addEventListener("click", () => {
@@ -489,17 +489,17 @@ function renderGroups(groups) {
   });
 }
 
-
 // =========================
 // Balances
 // =========================
 
 async function loadBalances(groups) {
   let owePaise = 0;
-
   let owedPaise = 0;
 
   try {
+    const user = await loadCurrentUser();
+
     const balanceRequests = groups.map((group) =>
       api.get(`/groups/${group.id}/balances`)
     );
@@ -510,11 +510,15 @@ async function loadBalances(groups) {
       const balances = response.data || [];
 
       balances.forEach((balance) => {
-        if (balance.userId !== auth.currentUser.uid) {
+        if (
+          Number(balance.userId) !==
+          Number(user.id)
+        ) {
           return;
         }
 
-        const amount = balance.balancePaise || 0;
+        const amount =
+          Number(balance.balancePaise) || 0;
 
         if (amount < 0) {
           owePaise += Math.abs(amount);
@@ -525,17 +529,15 @@ async function loadBalances(groups) {
     });
 
     totalOwe.textContent = formatCurrency(owePaise);
-
     totalOwed.textContent = formatCurrency(owedPaise);
+
   } catch (error) {
     console.error("Failed to load balances:", error);
 
     totalOwe.textContent = "—";
-
     totalOwed.textContent = "—";
   }
 }
-
 // =========================
 // Create Group Modal
 // =========================
@@ -557,6 +559,7 @@ function closeCreateGroupModal() {
 
   groupError.textContent = "";
 }
+
 createGroupButton.addEventListener("click", openCreateGroupModal);
 
 cancelGroupButton.addEventListener("click", closeCreateGroupModal);
@@ -574,13 +577,11 @@ createGroupForm.addEventListener("submit", async (event) => {
 
   if (!name) {
     groupError.textContent = "Please enter a group name.";
-
     return;
   }
 
   try {
     submitGroupButton.disabled = true;
-
     submitGroupButton.textContent = "Creating...";
 
     await api.post("/groups", {
@@ -596,29 +597,29 @@ createGroupForm.addEventListener("submit", async (event) => {
     groupError.textContent = error.message || "Unable to create group.";
   } finally {
     submitGroupButton.disabled = false;
-
     submitGroupButton.textContent = "Create Group";
   }
 });
 
 // =========================
-// Logout
+// Logout - CLERK
 // =========================
 
 logoutButton.addEventListener("click", async () => {
   try {
     logoutButton.disabled = true;
-
     logoutButton.textContent = "Logging out...";
 
-    await signOut(auth);
+    if (window.Clerk) {
+      await Clerk.signOut();
+    }
 
     window.location.href = "./login.html";
+
   } catch (error) {
     console.error("Logout failed:", error);
 
     logoutButton.disabled = false;
-
     logoutButton.textContent = "Logout";
   }
 });
@@ -635,4 +636,10 @@ function formatCurrency(paise) {
   }).format(paise / 100);
 }
 
+// =========================
+// Start Dashboard
+// =========================
+
 loadingBar.style.display = "none";
+
+initializeDashboard();

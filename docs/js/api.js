@@ -1,16 +1,32 @@
-import { auth } from "./firebase.js";
-
-const API_BASE_URL = "https://expensesplitter-vy1j.onrender.com/api";
-//const API_BASE_URL = "http://localhost:3016/api";
+const API_BASE_URL = "http://localhost:8787/api";
 
 async function getAuthToken() {
-  const user = auth.currentUser;
+  if (!window.Clerk) {
+    throw new Error("Clerk is not loaded");
+  }
 
-  if (!user) {
+  // Make sure Clerk has finished initialization
+  if (!Clerk.isLoaded) {
+    await Clerk.load({
+      ui: {
+        ClerkUI: window.__internal_ClerkUICtor,
+      },
+    });
+  }
+
+  if (!Clerk.isSignedIn || !Clerk.session) {
     throw new Error("User is not authenticated");
   }
 
-  return await user.getIdToken();
+  const token = await Clerk.session.getToken({
+    skipCache: true,
+  });
+
+  if (!token) {
+    throw new Error("Unable to obtain authentication token");
+  }
+
+  return token;
 }
 
 async function request(endpoint, options = {}) {
@@ -18,19 +34,31 @@ async function request(endpoint, options = {}) {
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
-
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
-
       ...options.headers,
     },
   });
 
-  const data = await response.json();
+  let data;
+
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("Invalid response from server");
+  }
 
   if (!response.ok) {
-    throw new Error(data.message || "Something went wrong");
+    if (response.status === 401) {
+      throw new Error("Authentication required");
+    }
+
+    throw new Error(
+      data.message ||
+      data.error ||
+      "Something went wrong"
+    );
   }
 
   return data;
@@ -60,7 +88,10 @@ export const api = {
   patch(endpoint, body) {
     return request(endpoint, {
       method: "PATCH",
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body:
+        body !== undefined
+          ? JSON.stringify(body)
+          : undefined,
     });
   },
 
