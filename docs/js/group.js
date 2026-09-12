@@ -149,6 +149,7 @@ async function loadGroupPage() {
       setProgress(50);
 
       await loadExpenses();
+      await loadMembers();
 
       setProgress(90);
     } else {
@@ -211,6 +212,7 @@ async function loadMembers() {
      */
 
     members = currentGroup.members || [];
+    console.log(currentGroup);
 
     renderMembers();
     populatePaidBy();

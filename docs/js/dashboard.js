@@ -47,7 +47,6 @@ async function loadCurrentUser() {
   }
 
   const response = await api.get("/users/me");
-
   const user = response.data;
 
   if (!user) {
@@ -95,7 +94,6 @@ async function loadUserExpenses(fromDate) {
     const response = await api.get(`/users/me/expenses?fromDate=${fromDate}`);
 
     userExpenses = response.data || [];
-
     localStorage.setItem(
       cacheKey,
       JSON.stringify({
@@ -333,8 +331,9 @@ async function initializeDashboard() {
     setProgress(100);
 
     setTimeout(() => {
-      loadingBar.style.display = "none";
-    }, 300);
+      
+    }, 100);
+    loadingBar.style.display = "none";
 
   } catch (error) {
     console.error("Failed to load dashboard:", error);
@@ -611,6 +610,7 @@ logoutButton.addEventListener("click", async () => {
     logoutButton.textContent = "Logging out...";
 
     if (window.Clerk) {
+      clearExpenseCache();
       await Clerk.signOut();
     }
 
