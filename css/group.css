@@ -657,3 +657,34 @@
 .expense-modal-actions .delete-expense-btn {
   padding: 9px 16px;
 }
+
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+
+  transform: translate(-50%, 20px);
+
+  background: #222;
+  color: #fff;
+
+  padding: 12px 20px;
+  border-radius: 8px;
+
+  font-size: 14px;
+
+  opacity: 0;
+
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+
+  z-index: 9999;
+
+  pointer-events: none;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
