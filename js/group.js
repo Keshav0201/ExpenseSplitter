@@ -529,60 +529,66 @@ function renderSettlements(settlements) {
       // --------------------------------------------------------
 
       if (!settlement.status) {
-        const payButton = document.createElement("button");
+        const status = document.createElement("div");
 
-        payButton.className = "settlement-button";
+        status.className = "settlement-status";
 
-        payButton.textContent = "Pay";
+        status.textContent = "Payment not marked as paid yet";
 
-        payButton.addEventListener("click", async () => {
-          payButton.disabled = true;
+        card.appendChild(status);
 
-          payButton.textContent = "Opening UPI...";
+        const paidButton = document.createElement("button");
+
+        paidButton.className = "settlement-button";
+
+        paidButton.textContent = "Mark as Paid";
+
+        paidButton.addEventListener("click", async () => {
+          paidButton.disabled = true;
+
+          paidButton.textContent = "Marking as paid...";
 
           try {
-            // Create settlement
-            const response = await api.post(`/groups/${groupId}/settlements`, {
-              from: settlement.from,
-              to: settlement.to,
-              amountPaise: settlement.amountPaise,
-            });
+            // First create the settlement
+            const response = await api.post(
+              `/groups/${groupId}/settlements`,
+              {
+                from: settlement.from,
+                to: settlement.to,
+                amountPaise: settlement.amountPaise,
+              }
+            );
 
             const created = response.data;
 
             console.log("Created settlement:", created);
 
-            // Get UPI intent
-            const paymentResponse = await api.get(
-              `/groups/${groupId}/settlements/${created.id}/payment`
+            // Then mark it as paid
+            await api.patch(
+              `/groups/${groupId}/settlements/${created.id}/paid`
             );
 
-            const payment = paymentResponse.data;
+            showToast("Payment marked as paid.");
 
-            console.log("UPI payment:", payment);
-
-            // Remember settlement
-            sessionStorage.setItem("pendingSettlementId", String(created.id));
-
-            // Open UPI
-            window.location.href = payment.upiIntent;
+            window.location.reload();
           } catch (error) {
-            console.error("Payment failed:", error);
+            console.error("Mark as paid failed:", error);
 
-            showToast("Failed to start payment.");
+            showToast("Failed to mark payment as paid.");
 
-            payButton.disabled = false;
+            paidButton.disabled = false;
 
-            payButton.textContent = "Pay";
+            paidButton.textContent = "Mark as Paid";
           }
         });
 
-        card.appendChild(payButton);
+        card.appendChild(paidButton);
       }
 
       // --------------------------------------------------------
       // PENDING EXISTING SETTLEMENT
       // --------------------------------------------------------
+
       else if (settlement.status === "pending") {
         const status = document.createElement("div");
 
@@ -628,6 +634,7 @@ function renderSettlements(settlements) {
       // --------------------------------------------------------
       // PAID
       // --------------------------------------------------------
+
       else if (settlement.status === "paid") {
         const status = document.createElement("div");
 
@@ -676,9 +683,8 @@ function renderSettlements(settlements) {
           );
 
           showToast("Payment confirmed.");
-          window.location.reload();
 
-          await Promise.all([loadBalance(), loadSettlements()]);
+          window.location.reload();
         } catch (error) {
           console.error("Confirm failed:", error);
 
@@ -713,6 +719,7 @@ function renderSettlements(settlements) {
           );
 
           showToast("Payment marked as not received.");
+
           window.location.reload();
         } catch (error) {
           console.error("Reject failed:", error);
