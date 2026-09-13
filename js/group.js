@@ -102,12 +102,8 @@ async function initializePage() {
     }
 
     await loadGroupPage();
-
   } catch (error) {
-    console.error(
-      "Failed to initialize group page:",
-      error
-    );
+    console.error("Failed to initialize group page:", error);
 
     if (
       error.message === "User is not authenticated" ||
@@ -117,9 +113,7 @@ async function initializePage() {
       return;
     }
 
-    showPageError(
-      error.message || "Unable to load group."
-    );
+    showPageError(error.message || "Unable to load group.");
   }
 }
 // ================================
@@ -466,12 +460,12 @@ function renderSettlements(settlements) {
 
       button.className = "settlement-button";
 
-      button.textContent = "Mark as Paid";
+      button.textContent = "Pay";
 
       button.addEventListener("click", async () => {
         button.disabled = true;
 
-        button.textContent = "Marking as Paid...";
+        button.textContent = "Paying...";
 
         try {
           const response = await api.post(`/groups/${groupId}/settlements`, {
@@ -482,9 +476,23 @@ function renderSettlements(settlements) {
 
           const createdSettlement = response.data;
 
-          await api.patch(
-            `/groups/${groupId}/settlements/${createdSettlement.id}/complete`
-          );
+          // await api.patch(
+          //   `/groups/${groupId}/settlements/${createdSettlement.id}/complete`
+          // );
+
+          try {
+            const res = await api.get(
+              `/groups/${groupId}/settlements/${createdSettlement.id}/payment`
+            );
+            const payment = res.data;
+            console.log("UPI payment:", payment);
+            window.location.href = payment.upiIntent;
+
+          } catch (error) {
+            console.error("Payment failed:", error);
+
+            showToast("Failed to settle.");
+          }
 
           await Promise.all([loadBalance(), loadSettlements()]);
         } catch (error) {
