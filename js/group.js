@@ -776,21 +776,25 @@ function closeMemberModal() {
 addMemberForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const email = memberEmail.value.trim();
+  const input = memberEmail.value.trim();
 
-  if (!email) {
-    memberError.textContent = "Enter an email address.";
-
+  if (!input) {
+    memberError.textContent = "Enter an email address or username.";
     return;
   }
-
+  let query = "";
+  if(input.includes("@")){
+    query = `/users/search?email=${encodeURIComponent(input)}`;
+  } else {
+    query = `/users/search?username=${encodeURIComponent(input)}`
+  }
   try {
     submitMemberButton.disabled = true;
 
     submitMemberButton.textContent = "Searching...";
 
     const searchResponse = await api.get(
-      `/users/search?email=${encodeURIComponent(email)}`
+      query
     );
 
     const user = searchResponse.data;
