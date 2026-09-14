@@ -330,11 +330,8 @@ async function initializeDashboard() {
     setProgress(90);
     setProgress(100);
 
-    setTimeout(() => {
-      
-    }, 100);
+    setTimeout(() => {}, 100);
     loadingBar.style.display = "none";
-
   } catch (error) {
     console.error("Failed to load dashboard:", error);
 
@@ -370,10 +367,16 @@ async function renderUser() {
   userName.textContent = name;
 
   const upiId = user.upiId || user.upi_id;
+  const username = user.username;
 
-  if (!upiId) {
-    upiIdText.textContent =
-      "Add your UPI ID to receive payments";
+  if (!upiId & !username) {
+    upiIdText.textContent = "Add your UPI ID and Username";
+    upiIdText.style.display = "";
+  } else if (!upiId) {
+    upiIdText.textContent = "Add your UPI ID";
+    upiIdText.style.display = "";
+  } else if (!username) {
+    upiIdText.textContent = "Add your username";
     upiIdText.style.display = "";
   } else {
     upiIdText.style.display = "none";
@@ -419,7 +422,6 @@ async function loadGroups() {
       totalOwe.textContent = formatCurrency(0);
       totalOwed.textContent = formatCurrency(0);
     }
-
   } catch (error) {
     console.error("Failed to load groups:", error);
 
@@ -509,15 +511,11 @@ async function loadBalances(groups) {
       const balances = response.data || [];
 
       balances.forEach((balance) => {
-        if (
-          Number(balance.userId) !==
-          Number(user.id)
-        ) {
+        if (Number(balance.userId) !== Number(user.id)) {
           return;
         }
 
-        const amount =
-          Number(balance.balancePaise) || 0;
+        const amount = Number(balance.balancePaise) || 0;
 
         if (amount < 0) {
           owePaise += Math.abs(amount);
@@ -529,7 +527,6 @@ async function loadBalances(groups) {
 
     totalOwe.textContent = formatCurrency(owePaise);
     totalOwed.textContent = formatCurrency(owedPaise);
-
   } catch (error) {
     console.error("Failed to load balances:", error);
 
@@ -615,7 +612,6 @@ logoutButton.addEventListener("click", async () => {
     }
 
     window.location.href = "./login.html";
-
   } catch (error) {
     console.error("Logout failed:", error);
 
