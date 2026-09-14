@@ -9,6 +9,8 @@ const nameInput = document.getElementById("profile-name");
 
 const emailInput = document.getElementById("profile-email");
 
+const usernameInput = document.getElementById("profile-username");
+
 const upiInput = document.getElementById("profile-upi");
 
 const form = document.getElementById("profile-form");
@@ -24,30 +26,29 @@ const successMessage = document.getElementById("profile-success");
 // ============================================================
 
 async function loadProfile() {
-    try {
-        const response = await api.get("/users/me");
+  try {
+    const response = await api.get("/users/me");
 
-        const profile = response.data;
+    const profile = response.data;
 
-        if (!profile) {
-            throw new Error("Profile not found");
-        }
-
-        nameInput.value = profile.name || "";
-        emailInput.value = profile.email || "";
-        upiInput.value =
-            profile.upiId ||
-            profile.upi_id ||
-            "";
-
-    } catch (error) {
-        console.error("Failed to load profile:", error);
-
-        errorMessage.textContent =
-            error.message || "Failed to load profile.";
-
-        throw error;
+    if (!profile) {
+      throw new Error("Profile not found");
     }
+
+    nameInput.value = profile.name || "";
+    usernameInput.value = profile.username || "";
+    if (profile.username) {
+      usernameInput.disabled = true;
+    }
+    emailInput.value = profile.email || "";
+    upiInput.value = profile.upiId || profile.upi_id || "";
+  } catch (error) {
+    console.error("Failed to load profile:", error);
+
+    errorMessage.textContent = error.message || "Failed to load profile.";
+
+    throw error;
+  }
 }
 
 bar.style.width = "20%";
@@ -65,7 +66,7 @@ form.addEventListener("submit", async (event) => {
   successMessage.textContent = "";
 
   const name = nameInput.value.trim();
-
+  const username = usernameInput.value.trim().toLowerCase();
   const upiId = upiInput.value.trim();
 
   if (!name) {
@@ -78,6 +79,41 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (username && (username.length < 6 || username.length > 10)) {
+    errorMessage.textContent = "Username should be between 6 to 10 characters.";
+
+    loadingBar.style.display = "none";
+
+    bar.style.width = "0%";
+
+    return;
+  }
+
+  if (username?.includes(" ")) {
+    errorMessage.textContent = "Username should not contain space";
+
+    loadingBar.style.display = "none";
+
+    bar.style.width = "0%";
+
+    return;
+  }
+
+  if (username) {
+    const response = await api.get(`/users/check-username/${username}`);
+    if (!response.available) {
+      errorMessage.textContent =
+        "Username already exists.";
+
+      loadingBar.style.display = "none";
+
+      bar.style.width = "0%";
+
+      return;
+    }
+    
+  }
+
   try {
     bar.style.width = "40%";
 
@@ -88,6 +124,7 @@ form.addEventListener("submit", async (event) => {
     await api.put("/users/me", {
       name,
       upiId,
+      username,
     });
 
     bar.style.width = "80%";
@@ -144,14 +181,13 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
 
 bar.style.width = "60%";
 async function initializeProfile() {
-    try {
-        await loadProfile();
-        bar.style.width = "100%";
-    } catch (error) {
-        console.error("Failed to initialize profile:", error);
-        errorMessage.textContent =
-            error.message || "Failed to load profile.";
-    }
+  try {
+    await loadProfile();
+    bar.style.width = "100%";
+  } catch (error) {
+    console.error("Failed to initialize profile:", error);
+    errorMessage.textContent = error.message || "Failed to load profile.";
+  }
 }
 
 initializeProfile();
