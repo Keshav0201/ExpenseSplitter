@@ -525,52 +525,66 @@ function renderSettlements(settlements) {
       // --------------------------------------------------------
 
       if (!settlement.status) {
-        const payButton = document.createElement("button");
+        const status = document.createElement("div");
 
-        payButton.className = "settlement-button";
-        payButton.textContent = "Pay";
+        status.className = "settlement-status";
 
-        payButton.addEventListener("click", async () => {
-          payButton.disabled = true;
-          payButton.textContent = "Processing...";
+        status.textContent = "Payment not marked as paid yet";
+
+        card.appendChild(status);
+
+        const paidButton = document.createElement("button");
+
+        paidButton.className = "settlement-button";
+
+        paidButton.textContent = "Mark as Paid";
+
+        paidButton.addEventListener("click", async () => {
+          paidButton.disabled = true;
+
+          paidButton.textContent = "Marking as paid...";
 
           try {
-            // 1. Create settlement
-            const response = await api.post(`/groups/${groupId}/settlements`, {
-              from: settlement.from,
-              to: settlement.to,
-              amountPaise: settlement.amountPaise,
-            });
+            // First create the settlement
+            const response = await api.post(
+              `/groups/${groupId}/settlements`,
+              {
+                from: settlement.from,
+                to: settlement.to,
+                amountPaise: settlement.amountPaise,
+              }
+            );
 
             const created = response.data;
 
             console.log("Created settlement:", created);
 
-            // 2. Immediately mark it as paid
+            // Then mark it as paid
             await api.patch(
               `/groups/${groupId}/settlements/${created.id}/paid`
             );
 
             showToast("Payment marked as paid.");
 
-            // Refresh settlement and balance data
-            await Promise.all([loadBalance(), loadSettlements()]);
+            window.location.reload();
           } catch (error) {
-            console.error("Payment failed:", error);
+            console.error("Mark as paid failed:", error);
 
-            showToast("Failed to process payment.");
+            showToast("Failed to mark payment as paid.");
 
-            payButton.disabled = false;
-            payButton.textContent = "Pay";
+            paidButton.disabled = false;
+
+            paidButton.textContent = "Mark as Paid";
           }
         });
 
-        card.appendChild(payButton);
+        card.appendChild(paidButton);
       }
 
       // --------------------------------------------------------
       // PENDING EXISTING SETTLEMENT
       // --------------------------------------------------------
+
       else if (settlement.status === "pending") {
         const status = document.createElement("div");
 
@@ -612,6 +626,7 @@ function renderSettlements(settlements) {
       // --------------------------------------------------------
       // PAID
       // --------------------------------------------------------
+
       else if (settlement.status === "paid") {
         const status = document.createElement("div");
 
@@ -657,7 +672,7 @@ function renderSettlements(settlements) {
 
           showToast("Payment confirmed.");
 
-          await Promise.all([loadBalance(), loadSettlements()]);
+          window.location.reload();
         } catch (error) {
           console.error("Confirm failed:", error);
 
@@ -690,7 +705,7 @@ function renderSettlements(settlements) {
 
           showToast("Payment marked as not received.");
 
-          await Promise.all([loadBalance(), loadSettlements()]);
+          window.location.reload();
         } catch (error) {
           console.error("Reject failed:", error);
 
