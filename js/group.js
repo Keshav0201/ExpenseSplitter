@@ -285,12 +285,12 @@ function renderMembers() {
         ? `${member.name} (You)`
         : member.name;
 
-    const email = document.createElement("p");
+    const upi = document.createElement("p");
 
-    email.textContent = member.email || "Member";
+    upi.textContent = member.upiId || member.upi_id || "No Upi Added";
 
     info.appendChild(name);
-    info.appendChild(email);
+    info.appendChild(upi);
 
     card.appendChild(image);
     card.appendChild(info);
@@ -498,11 +498,9 @@ function renderSettlements(settlements) {
 
   settlements.forEach((settlement) => {
     const card = document.createElement("div");
-
     card.className = "settlement-card";
 
     const info = document.createElement("div");
-
     info.className = "settlement-info";
 
     const from = getMemberName(settlement.from);
@@ -511,9 +509,7 @@ function renderSettlements(settlements) {
     info.textContent = `${from} → ${to}`;
 
     const amount = document.createElement("span");
-
     amount.className = "settlement-amount";
-
     amount.textContent = formatCurrency(settlement.amountPaise);
 
     card.appendChild(info);
@@ -532,16 +528,14 @@ function renderSettlements(settlements) {
         const payButton = document.createElement("button");
 
         payButton.className = "settlement-button";
-
         payButton.textContent = "Pay";
 
         payButton.addEventListener("click", async () => {
           payButton.disabled = true;
-
-          payButton.textContent = "Opening UPI...";
+          payButton.textContent = "Processing...";
 
           try {
-            // Create settlement
+            // 1. Create settlement
             const response = await api.post(`/groups/${groupId}/settlements`, {
               from: settlement.from,
               to: settlement.to,
@@ -552,27 +546,21 @@ function renderSettlements(settlements) {
 
             console.log("Created settlement:", created);
 
-            // Get UPI intent
-            const paymentResponse = await api.get(
-              `/groups/${groupId}/settlements/${created.id}/payment`
+            // 2. Immediately mark it as paid
+            await api.patch(
+              `/groups/${groupId}/settlements/${created.id}/paid`
             );
 
-            const payment = paymentResponse.data;
+            showToast("Payment marked as paid.");
 
-            console.log("UPI payment:", payment);
-
-            // Remember settlement
-            sessionStorage.setItem("pendingSettlementId", String(created.id));
-
-            // Open UPI
-            window.location.href = payment.upiIntent;
+            // Refresh settlement and balance data
+            await Promise.all([loadBalance(), loadSettlements()]);
           } catch (error) {
             console.error("Payment failed:", error);
 
-            showToast("Failed to start payment.");
+            showToast("Failed to process payment.");
 
             payButton.disabled = false;
-
             payButton.textContent = "Pay";
           }
         });
@@ -587,7 +575,6 @@ function renderSettlements(settlements) {
         const status = document.createElement("div");
 
         status.className = "settlement-status";
-
         status.textContent = "Payment not marked as paid yet";
 
         card.appendChild(status);
@@ -595,12 +582,10 @@ function renderSettlements(settlements) {
         const paidButton = document.createElement("button");
 
         paidButton.className = "settlement-button";
-
         paidButton.textContent = "Mark as Paid";
 
         paidButton.addEventListener("click", async () => {
           paidButton.disabled = true;
-
           paidButton.textContent = "Marking as paid...";
 
           try {
@@ -610,14 +595,13 @@ function renderSettlements(settlements) {
 
             showToast("Payment marked as paid.");
 
-            window.location.reload();
+            await Promise.all([loadBalance(), loadSettlements()]);
           } catch (error) {
             console.error("Mark as paid failed:", error);
 
             showToast("Failed to mark payment as paid.");
 
             paidButton.disabled = false;
-
             paidButton.textContent = "Mark as Paid";
           }
         });
@@ -632,7 +616,6 @@ function renderSettlements(settlements) {
         const status = document.createElement("div");
 
         status.className = "settlement-status";
-
         status.textContent = "Payment sent — waiting for confirmation";
 
         card.appendChild(status);
@@ -650,7 +633,6 @@ function renderSettlements(settlements) {
       const status = document.createElement("div");
 
       status.className = "settlement-status";
-
       status.textContent = "Payment received?";
 
       card.appendChild(status);
@@ -662,12 +644,10 @@ function renderSettlements(settlements) {
       const confirmButton = document.createElement("button");
 
       confirmButton.className = "settlement-button";
-
       confirmButton.textContent = "Confirm";
 
       confirmButton.addEventListener("click", async () => {
         confirmButton.disabled = true;
-
         confirmButton.textContent = "Confirming...";
 
         try {
@@ -676,7 +656,6 @@ function renderSettlements(settlements) {
           );
 
           showToast("Payment confirmed.");
-          window.location.reload();
 
           await Promise.all([loadBalance(), loadSettlements()]);
         } catch (error) {
@@ -685,7 +664,6 @@ function renderSettlements(settlements) {
           showToast("Failed to confirm payment.");
 
           confirmButton.disabled = false;
-
           confirmButton.textContent = "Confirm";
         }
       });
@@ -699,12 +677,10 @@ function renderSettlements(settlements) {
       const rejectButton = document.createElement("button");
 
       rejectButton.className = "settlement-button";
-
       rejectButton.textContent = "Not Received";
 
       rejectButton.addEventListener("click", async () => {
         rejectButton.disabled = true;
-
         rejectButton.textContent = "Rejecting...";
 
         try {
@@ -713,14 +689,14 @@ function renderSettlements(settlements) {
           );
 
           showToast("Payment marked as not received.");
-          window.location.reload();
+
+          await Promise.all([loadBalance(), loadSettlements()]);
         } catch (error) {
           console.error("Reject failed:", error);
 
           showToast("Failed to reject payment.");
 
           rejectButton.disabled = false;
-
           rejectButton.textContent = "Not Received";
         }
       });
@@ -736,7 +712,6 @@ function renderSettlements(settlements) {
       const status = document.createElement("div");
 
       status.className = "settlement-status";
-
       status.textContent = "Completed ✓";
 
       card.appendChild(status);
@@ -745,6 +720,7 @@ function renderSettlements(settlements) {
     settlementsContainer.appendChild(card);
   });
 }
+
 // ================================
 // Add Member
 // ================================
@@ -783,19 +759,17 @@ addMemberForm.addEventListener("submit", async (event) => {
     return;
   }
   let query = "";
-  if(input.includes("@")){
+  if (input.includes("@")) {
     query = `/users/search?email=${encodeURIComponent(input)}`;
   } else {
-    query = `/users/search?username=${encodeURIComponent(input)}`
+    query = `/users/search?username=${encodeURIComponent(input)}`;
   }
   try {
     submitMemberButton.disabled = true;
 
     submitMemberButton.textContent = "Searching...";
 
-    const searchResponse = await api.get(
-      query
-    );
+    const searchResponse = await api.get(query);
 
     const user = searchResponse.data;
 
@@ -1272,29 +1246,20 @@ expenseForm.addEventListener("submit", async (event) => {
     // Refresh
     // --------------------------------
 
-    await loadGroup();
+    setExpenseProgress(55, "Updating group...");
 
-    setExpenseProgress(55, "Updating members...");
-
-    await loadMembers();
-
-    setExpenseProgress(70, "Updating expenses...");
-
-    await loadExpenses();
-
-    setExpenseProgress(82, "Updating settlements...");
-
-    await loadSettlements();
-
-    setExpenseProgress(95, "Updating balance...");
-
-    await loadBalance();
+    await Promise.all([
+      loadGroup(),
+      loadMembers(),
+      loadExpenses(),
+      loadSettlements(),
+      loadBalance(),
+    ]);
 
     setExpenseProgress(100, "Expense added!");
 
     setTimeout(() => {
       hideExpenseLoading();
-
       closeExpenseModal();
     }, 400);
   } catch (error) {

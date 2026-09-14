@@ -312,25 +312,21 @@ async function initializeDashboard() {
     loadingBar.style.display = "flex";
     setProgress(10);
 
-    // Loads and caches the current D1 user
-    await loadCurrentUser();
-    await renderUser();
-
-    setProgress(30);
-
     const range = document.getElementById("spending-range").value;
     const fromDate = getFromDate(range);
 
-    await loadUserExpenses(fromDate);
+    await Promise.all([
+      loadCurrentUser(),
+      loadUserExpenses(fromDate),
+      loadDashboard(),
+    ]);
 
-    setProgress(55);
+    setProgress(80);
 
-    await loadDashboard();
+    await renderUser();
 
-    setProgress(90);
     setProgress(100);
 
-    setTimeout(() => {}, 100);
     loadingBar.style.display = "none";
   } catch (error) {
     console.error("Failed to load dashboard:", error);
@@ -369,7 +365,7 @@ async function renderUser() {
   const upiId = user.upiId || user.upi_id;
   const username = user.username;
 
-  if (!upiId & !username) {
+  if (!upiId && !username) {
     upiIdText.textContent = "Add your UPI ID and Username";
     upiIdText.style.display = "";
   } else if (!upiId) {
@@ -416,12 +412,7 @@ async function loadGroups() {
 
     renderGroups(groups);
 
-    if (groups.length > 0) {
-      await loadBalances(groups);
-    } else {
-      totalOwe.textContent = formatCurrency(0);
-      totalOwed.textContent = formatCurrency(0);
-    }
+    await loadBalances();
   } catch (error) {
     console.error("Failed to load groups:", error);
 
@@ -494,39 +485,28 @@ function renderGroups(groups) {
 // Balances
 // =========================
 
-async function loadBalances(groups) {
+async function loadBalances() {
   let owePaise = 0;
   let owedPaise = 0;
 
   try {
-    const user = await loadCurrentUser();
+    const balances = await api.get("/groups/my-balances");
 
-    const balanceRequests = groups.map((group) =>
-      api.get(`/groups/${group.id}/balances`)
-    );
+    console.log("Dashboard balances:", balances);
 
-    const responses = await Promise.all(balanceRequests);
+    balances.forEach((balance) => {
+      const amount = Number(balance.balancePaise) || 0;
 
-    responses.forEach((response) => {
-      const balances = response.data || [];
-
-      balances.forEach((balance) => {
-        if (Number(balance.userId) !== Number(user.id)) {
-          return;
-        }
-
-        const amount = Number(balance.balancePaise) || 0;
-
-        if (amount < 0) {
-          owePaise += Math.abs(amount);
-        } else if (amount > 0) {
-          owedPaise += amount;
-        }
-      });
+      if (amount < 0) {
+        owePaise += Math.abs(amount);
+      } else if (amount > 0) {
+        owedPaise += amount;
+      }
     });
 
     totalOwe.textContent = formatCurrency(owePaise);
     totalOwed.textContent = formatCurrency(owedPaise);
+
   } catch (error) {
     console.error("Failed to load balances:", error);
 
