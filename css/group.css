@@ -688,3 +688,71 @@
   opacity: 1;
   transform: translate(-50%, 0);
 }
+
+/* ==========================================================
+   Payment History
+   ========================================================== */
+
+.payment-history-section {
+  margin-top: 32px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.payment-logs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.payment-log-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  padding: 16px 18px;
+
+  background: var(--card-background, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 12px;
+}
+
+.payment-log-info {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.payment-log-date {
+  flex-shrink: 0;
+
+  font-size: 13px;
+  color: var(--muted-text, #6b7280);
+}
+
+/* Empty state */
+
+.payment-logs-container .empty-state {
+  padding: 20px;
+  text-align: center;
+
+  border: 1px dashed var(--border-color, #d1d5db);
+  border-radius: 12px;
+
+  color: var(--muted-text, #6b7280);
+}
+
+/* Mobile */
+
+@media (max-width: 600px) {
+  .payment-log-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .payment-log-date {
+    font-size: 12px;
+  }
+}

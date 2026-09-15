@@ -153,7 +153,7 @@ async function loadGroupPage() {
 
       setProgress(50);
 
-      await Promise.all([loadExpenses(), loadBalance(), loadSettlements()]);
+      await Promise.all([loadExpenses(), loadBalance(), loadSettlements(),loadPaymentLogs()]);
 
       setProgress(90);
     }
@@ -423,41 +423,11 @@ async function loadSettlements() {
   `;
 
   try {
-    const [suggestionsResponse, historyResponse] = await Promise.all([
-      api.get(`/groups/${groupId}/settlements`),
-      api.get(`/groups/${groupId}/settlements/history`),
-    ]);
-
-    const suggestions = suggestionsResponse.data || [];
-    const history = historyResponse.data || [];
-
-    // ----------------------------------------------------------
-    // Settlement records that still matter to the UI
-    // ----------------------------------------------------------
-
-    const activeHistory = history.filter(
-      (settlement) =>
-        settlement.status === "pending"
+    const response = await api.get(
+      `/groups/${groupId}/settlements`
     );
 
-    // ----------------------------------------------------------
-    // Remove suggestions that already have a settlement record
-    // ----------------------------------------------------------
-
-    const filteredSuggestions = suggestions.filter((suggestion) => {
-      return !activeHistory.some(
-        (settlement) =>
-          Number(settlement.from) === Number(suggestion.from) &&
-          Number(settlement.to) === Number(suggestion.to) &&
-          Number(settlement.amountPaise) === Number(suggestion.amountPaise)
-      );
-    });
-
-    // ----------------------------------------------------------
-    // History is the source of truth for existing settlements
-    // ----------------------------------------------------------
-
-    const settlements = [...activeHistory, ...filteredSuggestions];
+    const settlements = response.data || [];
 
     renderSettlements(settlements);
   } catch (error) {
@@ -503,113 +473,121 @@ function renderSettlements(settlements) {
     card.appendChild(info);
     card.appendChild(amount);
 
-    // ==========================================================
     // PAYER
-    // ==========================================================
-
     if (Number(settlement.from) === Number(currentUser.id)) {
-      // --------------------------------------------------------
-      // NEW SUGGESTION
-      // --------------------------------------------------------
+      const payButton = document.createElement("button");
 
-      if (!settlement.status) {
-        const payButton = document.createElement("button");
+      payButton.className = "settlement-button";
+      payButton.textContent = "Mark as Paid";
 
-        payButton.className = "settlement-button";
-        payButton.textContent = "Pay";
+      payButton.addEventListener("click", async () => {
+        payButton.disabled = true;
+        payButton.textContent = "Processing...";
 
-        payButton.addEventListener("click", async () => {
-          payButton.disabled = true;
-          payButton.textContent = "Processing...";
-
-          try {
-            // 1. Create settlement
-            const response = await api.post(`/groups/${groupId}/settlements`, {
+        try {
+          // Create settlement
+          const response = await api.post(
+            `/groups/${groupId}/settlements`,
+            {
               from: settlement.from,
               to: settlement.to,
               amountPaise: settlement.amountPaise,
-            });
+            }
+          );
 
-            const created = response.data;
+          const created = response.data;
 
-            console.log("Created settlement:", created);
+          console.log("Created settlement:", created);
 
-            // 2. Immediately mark it as paid
-            await api.patch(
-              `/groups/${groupId}/settlements/${created.id}/paid`
-            );
+          // Immediately mark as paid
+          await api.patch(
+            `/groups/${groupId}/settlements/${created.id}/paid`
+          );
 
-            showToast("Payment marked as paid.");
+          showToast("Payment marked as paid.");
 
-            await Promise.all([loadBalance(), loadSettlements()]);
-          } catch (error) {
-            console.error("Mark as paid failed:", error);
+          await Promise.all([
+            loadBalance(),
+            loadSettlements(),
+            loadPaymentLogs(),
+          ]);
+        } catch (error) {
+          console.error("Mark as paid failed:", error);
 
-            showToast("Failed to process payment.");
+          showToast("Failed to process payment.");
 
-            payButton.disabled = false;
-            payButton.textContent = "Pay";
-          }
-        });
+          payButton.disabled = false;
+          payButton.textContent = "Mark as Paid";
+        }
+      });
 
-        card.appendChild(payButton);
-      }
-
-      // --------------------------------------------------------
-      // PENDING EXISTING SETTLEMENT
-      // --------------------------------------------------------
-      else if (settlement.status === "pending") {
-        const status = document.createElement("div");
-
-        status.className = "settlement-status";
-        status.textContent = "Payment not marked as paid yet";
-
-        card.appendChild(status);
-
-        const paidButton = document.createElement("button");
-
-        paidButton.className = "settlement-button";
-        paidButton.textContent = "Mark as Paid";
-
-        paidButton.addEventListener("click", async () => {
-          paidButton.disabled = true;
-          paidButton.textContent = "Marking as paid...";
-
-          try {
-            await api.patch(
-              `/groups/${groupId}/settlements/${settlement.id}/paid`
-            );
-
-            showToast("Payment marked as paid.");
-
-            await Promise.all([loadBalance(), loadSettlements()]);
-          } catch (error) {
-            console.error("Mark as paid failed:", error);
-
-            showToast("Failed to mark payment as paid.");
-
-            paidButton.disabled = false;
-            paidButton.textContent = "Mark as Paid";
-          }
-        });
-
-        card.appendChild(paidButton);
-      }
-
-      // --------------------------------------------------------
-      // PAID
-      // --------------------------------------------------------
-      else if (settlement.status === "paid") {
-        const status = document.createElement("div");
-
-        status.className = "settlement-status";
-        status.textContent = "Payment marked as paid ✓";
-
-        card.appendChild(status);
-      }
+      card.appendChild(payButton);
     }
 
     settlementsContainer.appendChild(card);
+  });
+}
+
+// ================================
+// Logs
+// ================================
+
+async function loadPaymentLogs() {
+  try {
+    const response = await api.get(
+      `/groups/${groupId}/payment-logs`
+    );
+
+    const logs = response.data || [];
+
+    renderPaymentLogs(logs);
+  } catch (error) {
+    console.error("Failed to load payment logs:", error);
+  }
+}
+
+function renderPaymentLogs(logs) {
+  const logsContainer = document.getElementById("payment-logs");
+
+  if (!logsContainer) return;
+
+  if (logs.length === 0) {
+    logsContainer.innerHTML = `
+      <div class="empty-state">
+        No payments made yet.
+      </div>
+    `;
+
+    return;
+  }
+
+  logsContainer.innerHTML = "";
+
+  logs.forEach((log) => {
+    const logItem = document.createElement("div");
+
+    logItem.className = "payment-log-item";
+
+    const info = document.createElement("div");
+
+    info.className = "payment-log-info";
+
+    info.textContent =
+      `${log.payerName} paid ${formatCurrency(log.amountPaise)} to ${log.receiverName}`;
+
+    const date = document.createElement("span");
+
+    date.className = "payment-log-date";
+
+    date.textContent = new Date(log.createdAt).toLocaleString("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
+    logItem.appendChild(info);
+    logItem.appendChild(date);
+
+    logsContainer.appendChild(logItem);
   });
 }
 
@@ -1146,6 +1124,7 @@ expenseForm.addEventListener("submit", async (event) => {
       loadExpenses(),
       loadSettlements(),
       loadBalance(),
+      loadPaymentLogs()
     ]);
 
     setExpenseProgress(100, "Expense added!");
