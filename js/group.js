@@ -71,6 +71,8 @@ const deleteViewExpenseButton = document.getElementById(
   "delete-view-expense-btn"
 );
 
+const deleteGroupButton = document.getElementById("delete-group-btn");
+
 // ================================
 // State
 // ================================
@@ -153,7 +155,12 @@ async function loadGroupPage() {
 
       setProgress(50);
 
-      await Promise.all([loadExpenses(), loadBalance(), loadSettlements(),loadPaymentLogs()]);
+      await Promise.all([
+        loadExpenses(),
+        loadBalance(),
+        loadSettlements(),
+        loadPaymentLogs(),
+      ]);
 
       setProgress(90);
     }
@@ -182,6 +189,27 @@ async function loadGroup() {
   groupName.textContent = currentGroup.name || "Unnamed Group";
 
   groupDescription.textContent = "Group expenses and settlements";
+}
+
+function setupDeleteGroupButton() {
+  if (!deleteGroupButton || !currentGroup) return;
+
+  const currentMember = members.find(
+    (member) => Number(member.userId) === Number(currentUser.id)
+  );
+
+  // Personal groups cannot be deleted
+  if (currentGroup.type === "personal") {
+    deleteGroupButton.hidden = true;
+    return;
+  }
+
+  // Only admins can delete normal groups
+  if (currentMember?.role === "admin") {
+    deleteGroupButton.hidden = false;
+  } else {
+    deleteGroupButton.hidden = true;
+  }
 }
 
 function showToast(message, duration = 3000) {
@@ -233,6 +261,7 @@ async function loadMembers() {
     renderMembers();
     populatePaidBy();
     renderParticipants();
+    setupDeleteGroupButton();
   } catch (error) {
     console.error("Failed to load members:", error);
 
@@ -423,9 +452,7 @@ async function loadSettlements() {
   `;
 
   try {
-    const response = await api.get(
-      `/groups/${groupId}/settlements`
-    );
+    const response = await api.get(`/groups/${groupId}/settlements`);
 
     const settlements = response.data || [];
 
@@ -486,23 +513,18 @@ function renderSettlements(settlements) {
 
         try {
           // Create settlement
-          const response = await api.post(
-            `/groups/${groupId}/settlements`,
-            {
-              from: settlement.from,
-              to: settlement.to,
-              amountPaise: settlement.amountPaise,
-            }
-          );
+          const response = await api.post(`/groups/${groupId}/settlements`, {
+            from: settlement.from,
+            to: settlement.to,
+            amountPaise: settlement.amountPaise,
+          });
 
           const created = response.data;
 
           console.log("Created settlement:", created);
 
           // Immediately mark as paid
-          await api.patch(
-            `/groups/${groupId}/settlements/${created.id}/paid`
-          );
+          await api.patch(`/groups/${groupId}/settlements/${created.id}/paid`);
 
           showToast("Payment marked as paid.");
 
@@ -534,9 +556,7 @@ function renderSettlements(settlements) {
 
 async function loadPaymentLogs() {
   try {
-    const response = await api.get(
-      `/groups/${groupId}/payment-logs`
-    );
+    const response = await api.get(`/groups/${groupId}/payment-logs`);
 
     const logs = response.data || [];
 
@@ -572,8 +592,9 @@ function renderPaymentLogs(logs) {
 
     info.className = "payment-log-info";
 
-    info.textContent =
-      `${log.payerName} paid ${formatCurrency(log.amountPaise)} to ${log.receiverName}`;
+    info.textContent = `${log.payerName} paid ${formatCurrency(
+      log.amountPaise
+    )} to ${log.receiverName}`;
 
     const date = document.createElement("span");
 
@@ -861,6 +882,43 @@ function hideExpenseLoading() {
 }
 
 // ================================
+// Delete Group
+// ================================
+
+deleteGroupButton?.addEventListener("click", async () => {
+  const confirmed = confirm(
+    "Are you sure you want to delete this group?\n\n" +
+    "The group will be permanently hidden and cannot be recovered."
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    deleteGroupButton.disabled = true;
+    deleteGroupButton.textContent = "Deleting...";
+
+    await api.delete(`/groups/${groupId}`);
+
+    showToast("Group deleted successfully.");
+
+    setTimeout(() => {
+      window.location.href = "./dashboard.html";
+    }, 500);
+  } catch (error) {
+    console.error("Failed to delete group:", error);
+
+    deleteGroupButton.disabled = false;
+    deleteGroupButton.textContent = "Delete Group";
+
+    showToast(
+      error.message || "Failed to delete group. Please try again."
+    );
+  }
+});
+
+// ================================
 // Delete expense
 // ================================
 
@@ -889,10 +947,9 @@ deleteViewExpenseButton.addEventListener("click", async () => {
     console.error("Failed to delete expense:", error);
 
     deleteViewExpenseButton.disabled = false;
-
     deleteViewExpenseButton.textContent = "Delete Expense";
 
-    alert("Failed to delete expense. Please try again.");
+    alert(error.message || "Failed to delete expense. Please try again.");
   }
 });
 
@@ -1124,7 +1181,7 @@ expenseForm.addEventListener("submit", async (event) => {
       loadExpenses(),
       loadSettlements(),
       loadBalance(),
-      loadPaymentLogs()
+      loadPaymentLogs(),
     ]);
 
     setExpenseProgress(100, "Expense added!");
