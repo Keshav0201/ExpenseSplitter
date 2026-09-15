@@ -184,14 +184,6 @@ async function loadGroup() {
   groupDescription.textContent = "Group expenses and settlements";
 }
 
-async function refreshSettlementUI() {
-  try {
-    await Promise.all([loadBalance(), loadSettlements()]);
-  } catch (error) {
-    console.error("Failed to refresh settlement UI:", error);
-  }
-}
-
 function showToast(message, duration = 3000) {
   const toast = document.createElement("div");
 
@@ -445,7 +437,7 @@ async function loadSettlements() {
 
     const activeHistory = history.filter(
       (settlement) =>
-        settlement.status === "pending" || settlement.status === "paid"
+        settlement.status === "pending"
     );
 
     // ----------------------------------------------------------
@@ -466,10 +458,6 @@ async function loadSettlements() {
     // ----------------------------------------------------------
 
     const settlements = [...activeHistory, ...filteredSuggestions];
-
-    console.log("Settlement suggestions:", suggestions);
-    console.log("Settlement history:", history);
-    console.log("Settlements rendered:", settlements);
 
     renderSettlements(settlements);
   } catch (error) {
@@ -525,7 +513,7 @@ function renderSettlements(settlements) {
       // --------------------------------------------------------
 
       if (!settlement.status) {
-        const status = document.createElement("div");
+        const payButton = document.createElement("button");
 
         payButton.className = "settlement-button";
         payButton.textContent = "Pay";
@@ -553,7 +541,6 @@ function renderSettlements(settlements) {
 
             showToast("Payment marked as paid.");
 
-            // Refresh settlement and balance data
             await Promise.all([loadBalance(), loadSettlements()]);
           } catch (error) {
             console.error("Mark as paid failed:", error);
@@ -565,13 +552,12 @@ function renderSettlements(settlements) {
           }
         });
 
-        card.appendChild(paidButton);
+        card.appendChild(payButton);
       }
 
       // --------------------------------------------------------
       // PENDING EXISTING SETTLEMENT
       // --------------------------------------------------------
-
       else if (settlement.status === "pending") {
         const status = document.createElement("div");
 
@@ -613,110 +599,14 @@ function renderSettlements(settlements) {
       // --------------------------------------------------------
       // PAID
       // --------------------------------------------------------
-
       else if (settlement.status === "paid") {
         const status = document.createElement("div");
 
         status.className = "settlement-status";
-        status.textContent = "Payment sent — waiting for confirmation";
+        status.textContent = "Payment marked as paid ✓";
 
         card.appendChild(status);
       }
-    }
-
-    // ==========================================================
-    // RECEIVER
-    // ==========================================================
-
-    if (
-      Number(settlement.to) === Number(currentUser.id) &&
-      settlement.status === "paid"
-    ) {
-      const status = document.createElement("div");
-
-      status.className = "settlement-status";
-      status.textContent = "Payment received?";
-
-      card.appendChild(status);
-
-      // --------------------------------------------------------
-      // CONFIRM
-      // --------------------------------------------------------
-
-      const confirmButton = document.createElement("button");
-
-      confirmButton.className = "settlement-button";
-      confirmButton.textContent = "Confirm";
-
-      confirmButton.addEventListener("click", async () => {
-        confirmButton.disabled = true;
-        confirmButton.textContent = "Confirming...";
-
-        try {
-          await api.patch(
-            `/groups/${groupId}/settlements/${settlement.id}/confirm`
-          );
-
-          showToast("Payment confirmed.");
-
-          window.location.reload();
-        } catch (error) {
-          console.error("Confirm failed:", error);
-
-          showToast("Failed to confirm payment.");
-
-          confirmButton.disabled = false;
-          confirmButton.textContent = "Confirm";
-        }
-      });
-
-      card.appendChild(confirmButton);
-
-      // --------------------------------------------------------
-      // REJECT
-      // --------------------------------------------------------
-
-      const rejectButton = document.createElement("button");
-
-      rejectButton.className = "settlement-button";
-      rejectButton.textContent = "Not Received";
-
-      rejectButton.addEventListener("click", async () => {
-        rejectButton.disabled = true;
-        rejectButton.textContent = "Rejecting...";
-
-        try {
-          await api.patch(
-            `/groups/${groupId}/settlements/${settlement.id}/reject`
-          );
-
-          showToast("Payment marked as not received.");
-
-          await Promise.all([loadBalance(), loadSettlements()]);
-        } catch (error) {
-          console.error("Reject failed:", error);
-
-          showToast("Failed to reject payment.");
-
-          rejectButton.disabled = false;
-          rejectButton.textContent = "Not Received";
-        }
-      });
-
-      card.appendChild(rejectButton);
-    }
-
-    // ==========================================================
-    // COMPLETED
-    // ==========================================================
-
-    if (settlement.status === "completed") {
-      const status = document.createElement("div");
-
-      status.className = "settlement-status";
-      status.textContent = "Completed ✓";
-
-      card.appendChild(status);
     }
 
     settlementsContainer.appendChild(card);
@@ -1352,17 +1242,3 @@ function showPageError(message) {
 // ================================
 
 initializePage();
-
-window.addEventListener("pageshow", async () => {
-  console.log("Returned to group page");
-
-  await refreshSettlementUI();
-});
-
-document.addEventListener("visibilitychange", async () => {
-  if (document.visibilityState === "visible") {
-    console.log("App became visible again");
-
-    await refreshSettlementUI();
-  }
-});
