@@ -163,7 +163,7 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
       await Clerk.signOut();
     }
 
-    window.location.href = "./login.html";
+    window.location.href = "../index.html";
   } catch (error) {
     console.error("Logout failed:", error);
 

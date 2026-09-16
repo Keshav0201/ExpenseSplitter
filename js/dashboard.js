@@ -337,7 +337,7 @@ async function initializeDashboard() {
       error.message === "User is not authenticated" ||
       error.message === "Authentication required"
     ) {
-      window.location.href = "./login.html";
+      window.location.href = "../index.html";
       return;
     }
 
@@ -591,7 +591,7 @@ logoutButton.addEventListener("click", async () => {
       await Clerk.signOut();
     }
 
-    window.location.href = "./login.html";
+    window.location.href = "../index.html";
   } catch (error) {
     console.error("Logout failed:", error);
 
