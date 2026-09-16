@@ -19,9 +19,9 @@ async function initializeAuth() {
         ClerkUI: window.__internal_ClerkUICtor,
       },
 
-      signInFallbackRedirectUrl: "./pages/dashboard.html",
+      signInFallbackRedirectUrl: "/pages/dashboard.html",
 
-      signUpFallbackRedirectUrl: "./pages/dashboard.html",
+      signUpFallbackRedirectUrl: "/pages/dashboard.html",
     });
 
     bar.style.width = "40%";
@@ -41,6 +41,13 @@ async function initializeAuth() {
         await api.get("/users/me");
       } catch (error) {
         console.error("Failed to initialize user profile:", error);
+
+        if (authError) {
+          authError.textContent =
+            "Unable to connect to the server. Please try again.";
+        }
+
+        return;
       }
 
       bar.style.width = "100%";
