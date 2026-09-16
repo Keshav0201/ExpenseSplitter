@@ -29,7 +29,7 @@ async function initializeAuth() {
     console.log("Clerk loaded!");
     console.log("Signed in:", Clerk.isSignedIn);
 
-    if (Clerk.isSignedIn) {
+    if (Clerk.isSignedIn && Clerk.session) {
       console.log(
         "User is already signed in:",
         Clerk.user?.primaryEmailAddress?.emailAddress
@@ -39,6 +39,11 @@ async function initializeAuth() {
 
       try {
         await api.get("/users/me");
+
+        bar.style.width = "100%";
+
+        window.location.href = "./pages/dashboard.html";
+        return;
       } catch (error) {
         console.error("Failed to initialize user profile:", error);
 
@@ -47,17 +52,6 @@ async function initializeAuth() {
             "Unable to connect to the server. Please try again.";
         }
       }
-
-      bar.style.width = "100%";
-      console.log("CURRENT URL:", window.location.href);
-      console.log(
-        "REDIRECTING TO:",
-        new URL("./pages/dashboard.html", window.location.href).href
-      );
-
-      window.location.href = "./pages/dashboard.html";
-
-      return;
     }
 
     console.log("No authenticated user");
