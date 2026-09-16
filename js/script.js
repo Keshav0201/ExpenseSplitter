@@ -46,8 +46,6 @@ async function initializeAuth() {
           authError.textContent =
             "Unable to connect to the server. Please try again.";
         }
-
-        return;
       }
 
       bar.style.width = "100%";
