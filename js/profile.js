@@ -1,10 +1,5 @@
 import { api } from "./api.js";
 
-const bar = document.getElementById("bar");
-bar.style.width = "0%";
-
-const loadingBar = document.getElementById("progress-bar-container");
-
 const nameInput = document.getElementById("profile-name");
 
 const emailInput = document.getElementById("profile-email");
@@ -25,23 +20,26 @@ const successMessage = document.getElementById("profile-success");
 // Load profile
 // ============================================================
 
-async function loadProfile() {
+function loadProfile() {
   try {
-    const response = await api.get("/users/me");
+    const cachedUser = localStorage.getItem("currentUser");
 
-    const profile = response.data;
-
-    if (!profile) {
-      throw new Error("Profile not found");
+    if (!cachedUser) {
+      throw new Error("User information not found.");
     }
+
+    const profile = JSON.parse(cachedUser);
 
     nameInput.value = profile.name || "";
     usernameInput.value = profile.username || "";
+    emailInput.value = profile.email || "";
+    upiInput.value = profile.upiId || profile.upi_id || "";
+
     if (profile.username) {
       usernameInput.disabled = true;
     }
-    emailInput.value = profile.email || "";
-    upiInput.value = profile.upiId || profile.upi_id || "";
+
+    console.log("[PROFILE] Loaded from localStorage");
   } catch (error) {
     console.error("Failed to load profile:", error);
 
@@ -51,17 +49,12 @@ async function loadProfile() {
   }
 }
 
-bar.style.width = "20%";
-
 // ============================================================
 // Update profile
 // ============================================================
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-
-  loadingBar.style.display = "flex";
-
   errorMessage.textContent = "";
   successMessage.textContent = "";
 
@@ -71,52 +64,28 @@ form.addEventListener("submit", async (event) => {
 
   if (!name) {
     errorMessage.textContent = "Name cannot be empty.";
-
-    loadingBar.style.display = "none";
-
-    bar.style.width = "0%";
-
     return;
   }
 
   if (username && (username.length < 6 || username.length > 10)) {
     errorMessage.textContent = "Username should be between 6 to 10 characters.";
-
-    loadingBar.style.display = "none";
-
-    bar.style.width = "0%";
-
     return;
   }
 
   if (username?.includes(" ")) {
     errorMessage.textContent = "Username should not contain space";
-
-    loadingBar.style.display = "none";
-
-    bar.style.width = "0%";
-
     return;
   }
 
   if (username) {
     const response = await api.get(`/users/check-username/${username}`);
     if (!response.available) {
-      errorMessage.textContent =
-        "Username already exists.";
-
-      loadingBar.style.display = "none";
-
-      bar.style.width = "0%";
-
+      errorMessage.textContent = "Username already exists.";
       return;
     }
-    
   }
 
   try {
-    bar.style.width = "40%";
-
     saveButton.disabled = true;
 
     saveButton.textContent = "Saving...";
@@ -127,11 +96,9 @@ form.addEventListener("submit", async (event) => {
       username,
     });
 
-    bar.style.width = "80%";
+    localStorage.removeItem("currentUser");
 
     successMessage.textContent = "Profile updated successfully.";
-
-    bar.style.width = "100%";
 
     window.location.href = "./dashboard.html";
   } catch (error) {
@@ -142,8 +109,6 @@ form.addEventListener("submit", async (event) => {
     saveButton.disabled = false;
 
     saveButton.textContent = "Save Changes";
-
-    loadingBar.style.display = "none";
   }
 });
 
@@ -162,7 +127,7 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
     if (window.Clerk && Clerk.signOut) {
       await Clerk.signOut();
     }
-
+    localStorage.removeItem("currentUser");
     window.location.href = "../index.html";
   } catch (error) {
     console.error("Logout failed:", error);
@@ -179,11 +144,10 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
 // Authentication / Initial load
 // ============================================================
 
-bar.style.width = "60%";
 async function initializeProfile() {
   try {
     await loadProfile();
-    bar.style.width = "100%";
+    
   } catch (error) {
     console.error("Failed to initialize profile:", error);
     errorMessage.textContent = error.message || "Failed to load profile.";
@@ -191,8 +155,3 @@ async function initializeProfile() {
 }
 
 initializeProfile();
-
-// Hide loading bar after initialization
-setTimeout(() => {
-  loadingBar.style.display = "none";
-}, 500);

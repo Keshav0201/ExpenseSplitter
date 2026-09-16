@@ -1,14 +1,4 @@
 import { api } from "./api.js";
-
-const bar = document.getElementById("bar");
-bar.style.width = "0%";
-
-const loadingBar = document.getElementById("progress-bar-container");
-
-function setProgress(percent) {
-  bar.style.width = `${percent}%`;
-}
-
 const params = new URLSearchParams(window.location.search);
 const groupId = params.get("id");
 
@@ -88,7 +78,6 @@ let selectedExpenseId = null;
 
 async function initializePage() {
   try {
-    setProgress(10);
 
     if (!groupId) {
       showPageError("Invalid group.");
@@ -123,13 +112,9 @@ async function initializePage() {
 // ================================
 
 async function loadGroupPage() {
-  loadingBar.style.display = "flex";
-  setProgress(10);
-
+  
   try {
     await loadGroup();
-
-    setProgress(30);
 
     if (currentGroup.type === "personal") {
       groupDescription.textContent = "Your personal expenses";
@@ -142,18 +127,14 @@ async function loadGroupPage() {
 
       addMemberButton?.classList.add("hidden");
 
-      setProgress(50);
-
       await loadExpenses();
       await loadMembers();
 
-      setProgress(90);
     } else {
       groupDescription.textContent = "Group expenses and settlements";
 
       await loadMembers();
 
-      setProgress(50);
 
       await Promise.all([
         loadExpenses(),
@@ -162,33 +143,135 @@ async function loadGroupPage() {
         loadPaymentLogs(),
       ]);
 
-      setProgress(90);
     }
-
-    setProgress(100);
-
-    setTimeout(() => {
-      loadingBar.style.display = "none";
-    }, 300);
   } catch (error) {
     console.error("Failed to load group:", error);
-
-    loadingBar.style.display = "none";
   }
+}
+
+// ================================
+// Group Cache
+// ================================
+
+// ================================
+// Group Cache
+// ================================
+
+const GROUP_CACHE_TTL = 60 * 1000; // 1 minute
+
+function getGroupCacheKey() {
+  return `group_${groupId}`;
+}
+
+function getCachedGroup() {
+  try {
+    const cached = localStorage.getItem(getGroupCacheKey());
+
+    if (!cached) {
+      
+      return null;
+    }
+
+    const parsed = JSON.parse(cached);
+
+    if (!parsed.data || !parsed.timestamp) {
+      localStorage.removeItem(getGroupCacheKey());
+      return null;
+    }
+
+    if (Date.now() - parsed.timestamp > GROUP_CACHE_TTL) {
+      localStorage.removeItem(getGroupCacheKey());
+      return null;
+    }
+
+
+    return parsed.data;
+  } catch (error) {
+    console.error("[GROUP CACHE] READ ERROR:", error);
+    return null;
+  }
+}
+
+function setGroupCache(group) {
+  try {
+    localStorage.setItem(
+      getGroupCacheKey(),
+      JSON.stringify({
+        data: group,
+        timestamp: Date.now(),
+      })
+    );
+
+  } catch (error) {
+    console.error("[GROUP CACHE] SAVE ERROR:", error);
+  }
+}
+
+function clearGroupCache() {
+  localStorage.removeItem(getGroupCacheKey());
 }
 
 // ================================
 // Group
 // ================================
 
-async function loadGroup() {
+async function loadGroup({ useCache = true } = {}) {
+
+  if (useCache) {
+    const cachedGroup = getCachedGroup();
+
+    if (cachedGroup) {
+
+      currentGroup = cachedGroup;
+
+      groupName.textContent = currentGroup.name || "Unnamed Group";
+
+      groupDescription.textContent =
+        currentGroup.type === "personal"
+          ? "Your personal expenses"
+          : "Group expenses and settlements";
+
+      api
+        .get(`/groups/${groupId}`)
+        .then((response) => {
+
+          currentGroup = response.data;
+          setGroupCache(currentGroup);
+
+          groupName.textContent = currentGroup.name || "Unnamed Group";
+
+          groupDescription.textContent =
+            currentGroup.type === "personal"
+              ? "Your personal expenses"
+              : "Group expenses and settlements";
+
+          members = currentGroup.members || [];
+
+          renderMembers();
+          populatePaidBy();
+          renderParticipants();
+          setupDeleteGroupButton();
+        })
+        .catch((error) => {
+          console.error("[GROUP] Background refresh failed:", error);
+        });
+
+      return;
+    }
+  }
+
   const response = await api.get(`/groups/${groupId}`);
 
   currentGroup = response.data;
 
+  setGroupCache(currentGroup);
+
   groupName.textContent = currentGroup.name || "Unnamed Group";
 
-  groupDescription.textContent = "Group expenses and settlements";
+  groupDescription.textContent =
+    currentGroup.type === "personal"
+      ? "Your personal expenses"
+      : "Group expenses and settlements";
 }
 
 function setupDeleteGroupButton() {
@@ -256,8 +339,6 @@ async function loadMembers() {
      */
 
     members = currentGroup.members || [];
-    console.log(currentGroup);
-
     renderMembers();
     populatePaidBy();
     renderParticipants();
@@ -521,8 +602,6 @@ function renderSettlements(settlements) {
 
           const created = response.data;
 
-          console.log("Created settlement:", created);
-
           // Immediately mark as paid
           await api.patch(`/groups/${groupId}/settlements/${created.id}/paid`);
 
@@ -678,9 +757,11 @@ addMemberForm.addEventListener("submit", async (event) => {
       userId: user.id,
     });
 
+    clearGroupCache();
+
     closeMemberModal();
 
-    await loadGroup();
+    await loadGroup({ useCache: false });
     await loadMembers();
   } catch (error) {
     console.error("Add member failed:", error);
@@ -888,7 +969,7 @@ function hideExpenseLoading() {
 deleteGroupButton?.addEventListener("click", async () => {
   const confirmed = confirm(
     "Are you sure you want to delete this group?\n\n" +
-    "The group will be permanently hidden and cannot be recovered."
+      "The group will be permanently hidden and cannot be recovered."
   );
 
   if (!confirmed) {
@@ -912,9 +993,7 @@ deleteGroupButton?.addEventListener("click", async () => {
     deleteGroupButton.disabled = false;
     deleteGroupButton.textContent = "Delete Group";
 
-    showToast(
-      error.message || "Failed to delete group. Please try again."
-    );
+    showToast(error.message || "Failed to delete group. Please try again.");
   }
 });
 
@@ -942,7 +1021,15 @@ deleteViewExpenseButton.addEventListener("click", async () => {
 
     clearExpenseCache();
 
-    window.location.reload();
+    await Promise.all([
+      loadExpenses(),
+      loadBalance(),
+      loadSettlements(),
+      loadPaymentLogs(),
+    ]);
+    closeExpenseDetails();
+
+    showToast("Expense deleted successfully.");
   } catch (error) {
     console.error("Failed to delete expense:", error);
 
@@ -1176,8 +1263,6 @@ expenseForm.addEventListener("submit", async (event) => {
     setExpenseProgress(55, "Updating group...");
 
     await Promise.all([
-      loadGroup(),
-      loadMembers(),
       loadExpenses(),
       loadSettlements(),
       loadBalance(),
@@ -1213,8 +1298,6 @@ function clearExpenseCache() {
       localStorage.removeItem(key);
     }
   });
-
-  console.log("Expense cache cleared");
 }
 
 // ================================
@@ -1230,7 +1313,7 @@ logoutButton.addEventListener("click", async () => {
     if (window.Clerk && Clerk.signOut) {
       await Clerk.signOut();
     }
-
+    localStorage.removeItem("currentUser");
     window.location.href = "../index.html";
   } catch (error) {
     console.error("Logout failed:", error);

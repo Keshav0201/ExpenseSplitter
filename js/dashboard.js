@@ -4,14 +4,6 @@ import { api } from "./api.js";
 // DOM Elements
 // =========================
 let currentUser = null;
-const bar = document.getElementById("bar");
-bar.style.width = "0%";
-
-const loadingBar = document.getElementById("progress-bar-container");
-
-function setProgress(percent) {
-  bar.style.width = `${percent}%`;
-}
 
 const welcomeName = document.getElementById("welcome-name");
 const userName = document.getElementById("user-name");
@@ -46,6 +38,19 @@ async function loadCurrentUser() {
     return currentUser;
   }
 
+  // Try localStorage first
+  const cachedUser = localStorage.getItem("currentUser");
+
+  if (cachedUser) {
+    try {
+      currentUser = JSON.parse(cachedUser);
+      return currentUser;
+    } catch (error) {
+      console.error("[USER CACHE] INVALID");
+      localStorage.removeItem("currentUser");
+    }
+  }
+
   const response = await api.get("/users/me");
   const user = response.data;
 
@@ -54,6 +59,17 @@ async function loadCurrentUser() {
   }
 
   currentUser = user;
+
+  // Store only what we need
+  localStorage.setItem(
+    "currentUser",
+    JSON.stringify({
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      upiId: user.upiId || user.upi_id || null,
+    })
+  );
 
   return currentUser;
 }
@@ -71,7 +87,6 @@ async function loadUserExpenses(fromDate) {
       const cacheAge = Date.now() - cached.cachedAt;
 
       if (cacheAge < CACHE_DURATION) {
-        console.log("Loaded expenses from localStorage");
 
         userExpenses = cached.data;
 
@@ -86,9 +101,6 @@ async function loadUserExpenses(fromDate) {
       localStorage.removeItem(cacheKey);
     }
   }
-
-  // Cache unavailable/expired → fetch from backend
-  console.log("Loading expenses from database...");
 
   try {
     const response = await api.get(`/users/me/expenses?fromDate=${fromDate}`);
@@ -119,7 +131,6 @@ function clearExpenseCache() {
     }
   });
 
-  console.log("Expense cache cleared");
 }
 
 // =========================
@@ -309,9 +320,6 @@ document
 
 async function initializeDashboard() {
   try {
-    loadingBar.style.display = "flex";
-    setProgress(10);
-
     const range = document.getElementById("spending-range").value;
     const fromDate = getFromDate(range);
 
@@ -321,17 +329,9 @@ async function initializeDashboard() {
       loadDashboard(),
     ]);
 
-    setProgress(80);
-
     await renderUser();
-
-    setProgress(100);
-
-    loadingBar.style.display = "none";
   } catch (error) {
     console.error("Failed to load dashboard:", error);
-
-    loadingBar.style.display = "none";
 
     if (
       error.message === "User is not authenticated" ||
@@ -391,14 +391,88 @@ async function renderUser() {
 // =========================
 
 async function loadDashboard() {
-  await Promise.all([loadGroups()]);
+  await Promise.all([loadGroups(), loadBalances()]);
+}
+
+// =========================
+// Groups Cache
+// =========================
+
+const GROUPS_CACHE_KEY = "dashboard_groups";
+const GROUPS_CACHE_TTL = 5 * 60 * 1000; // 1 minute
+
+function getCachedGroups() {
+  try {
+    const cached = localStorage.getItem(GROUPS_CACHE_KEY);
+
+    if (!cached) {
+      return null;
+    }
+
+    const parsed = JSON.parse(cached);
+
+    if (!parsed.data || !parsed.timestamp) {
+      localStorage.removeItem(GROUPS_CACHE_KEY);
+      return null;
+    }
+
+    if (Date.now() - parsed.timestamp > GROUPS_CACHE_TTL) {
+      localStorage.removeItem(GROUPS_CACHE_KEY);
+      return null;
+    }
+
+    return parsed.data;
+  } catch (error) {
+    console.error("[GROUPS CACHE] READ ERROR:", error);
+    return null;
+  }
+}
+
+function setGroupsCache(groups) {
+  try {
+    localStorage.setItem(
+      GROUPS_CACHE_KEY,
+      JSON.stringify({
+        data: groups,
+        timestamp: Date.now(),
+      })
+    );
+  } catch (error) {
+    console.error("[GROUPS CACHE] SAVE ERROR:", error);
+  }
+}
+
+function clearGroupsCache() {
+  localStorage.removeItem(GROUPS_CACHE_KEY);
 }
 
 // =========================
 // Groups
 // =========================
 
-async function loadGroups() {
+async function loadGroups({ useCache = true } = {}) {
+  if (useCache) {
+    const cachedGroups = getCachedGroups();
+
+    if (cachedGroups) {
+      renderGroups(cachedGroups);
+
+      api
+        .get("/groups")
+        .then((response) => {
+          const freshGroups = response.data || [];
+
+          setGroupsCache(freshGroups);
+          renderGroups(freshGroups);
+        })
+        .catch((error) => {
+          console.error("[GROUPS] Background refresh failed:", error);
+        });
+
+      return;
+    }
+  }
+
   groupsContainer.innerHTML = `
     <div class="loading-state">
       Loading groups...
@@ -406,13 +480,14 @@ async function loadGroups() {
   `;
 
   try {
+
     const response = await api.get("/groups");
 
     const groups = response.data || [];
 
+    setGroupsCache(groups);
     renderGroups(groups);
 
-    await loadBalances();
   } catch (error) {
     console.error("Failed to load groups:", error);
 
@@ -424,7 +499,6 @@ async function loadGroups() {
     `;
   }
 }
-
 // =========================
 // Render Groups
 // =========================
@@ -492,8 +566,6 @@ async function loadBalances() {
   try {
     const balances = await api.get("/groups/my-balances");
 
-    console.log("Dashboard balances:", balances);
-
     balances.forEach((balance) => {
       const amount = Number(balance.balancePaise) || 0;
 
@@ -506,7 +578,6 @@ async function loadBalances() {
 
     totalOwe.textContent = formatCurrency(owePaise);
     totalOwed.textContent = formatCurrency(owedPaise);
-
   } catch (error) {
     console.error("Failed to load balances:", error);
 
@@ -564,9 +635,11 @@ createGroupForm.addEventListener("submit", async (event) => {
       name: name,
     });
 
+    clearGroupsCache();
+
     closeCreateGroupModal();
 
-    await loadGroups();
+    await loadGroups({ useCache: false });
   } catch (error) {
     console.error("Create group failed:", error);
 
@@ -590,7 +663,7 @@ logoutButton.addEventListener("click", async () => {
       clearExpenseCache();
       await Clerk.signOut();
     }
-
+    localStorage.removeItem("currentUser");
     window.location.href = "../index.html";
   } catch (error) {
     console.error("Logout failed:", error);
@@ -615,7 +688,5 @@ function formatCurrency(paise) {
 // =========================
 // Start Dashboard
 // =========================
-
-loadingBar.style.display = "none";
 
 initializeDashboard();
