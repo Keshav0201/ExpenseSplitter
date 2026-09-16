@@ -87,7 +87,6 @@ async function loadUserExpenses(fromDate) {
       const cacheAge = Date.now() - cached.cachedAt;
 
       if (cacheAge < CACHE_DURATION) {
-
         userExpenses = cached.data;
 
         renderSpendingChart();
@@ -130,7 +129,6 @@ function clearExpenseCache() {
       localStorage.removeItem(key);
     }
   });
-
 }
 
 // =========================
@@ -480,14 +478,12 @@ async function loadGroups({ useCache = true } = {}) {
   `;
 
   try {
-
     const response = await api.get("/groups");
 
     const groups = response.data || [];
 
     setGroupsCache(groups);
     renderGroups(groups);
-
   } catch (error) {
     console.error("Failed to load groups:", error);
 
@@ -661,8 +657,15 @@ logoutButton.addEventListener("click", async () => {
 
     if (window.Clerk) {
       clearExpenseCache();
-      await Clerk.signOut();
+      localStorage.removeItem("currentUser");
+
+      await Clerk.signOut({
+        redirectUrl: "../index.html",
+      });
+
+      return;
     }
+
     localStorage.removeItem("currentUser");
     window.location.href = "../index.html";
   } catch (error) {
