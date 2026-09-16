@@ -20,9 +20,7 @@ async function getAuthToken() {
     throw new Error("User is not authenticated");
   }
 
-  const token = await Clerk.session.getToken({
-    skipCache: true,
-  });
+  const token = await Clerk.session.getToken();
 
   if (!token) {
     throw new Error("Unable to obtain authentication token");
